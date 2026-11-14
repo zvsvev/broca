@@ -9,6 +9,7 @@ import { TopBar } from "./components/TopBar";
 import { nowNs, phaseOf } from "./lib/phase";
 import { useData } from "./lib/store";
 import { Agents } from "./pages/Agents";
+import { AgentProfile } from "./pages/AgentProfile";
 import { Ask } from "./pages/Ask";
 import { Broca } from "./pages/Broca";
 import { Manifesto } from "./pages/Manifesto";
@@ -57,7 +58,10 @@ export function App() {
 
   const match = pathname.match(/^\/q\/([0-9a-f]+)/i);
   const routeId = match ? match[1] : null;
+  const agentMatch = pathname.match(/^\/agent\/(.+)$/);
+  const agentAccount = agentMatch ? decodeURIComponent(agentMatch[1]) : null;
   const isAgents = pathname === "/agents";
+  const isProfile = agentAccount !== null;
   const isSetup = pathname === "/setup";
   const isBroca = pathname === "/broca";
   const isManifesto = pathname === "/manifesto";
@@ -66,6 +70,7 @@ export function App() {
     pathname === "/" ||
     routeId !== null ||
     isAgents ||
+    isProfile ||
     isSetup ||
     isBroca ||
     isManifesto ||
@@ -105,10 +110,20 @@ export function App() {
     if (routeId !== null || isAsk) navigate("/");
   };
 
-  if (isAgents || isSetup || isBroca || isManifesto) {
+  if (isAgents || isSetup || isBroca || isManifesto || isProfile) {
     return (
       <Single>
-        {isAgents ? <Agents /> : isBroca ? <Broca /> : isManifesto ? <Manifesto /> : <Setup />}
+        {isAgents ? (
+          <Agents />
+        ) : isBroca ? (
+          <Broca />
+        ) : isManifesto ? (
+          <Manifesto />
+        ) : isProfile ? (
+          <AgentProfile account={agentAccount!} />
+        ) : (
+          <Setup />
+        )}
       </Single>
     );
   }

@@ -920,6 +920,31 @@ details.cli summary {
   text-decoration: underline;
 }
 
+/* ---- agent profile ---- */
+.profile-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.profile-id {
+  font-size: 13px;
+  word-break: break-all;
+}
+.profile-q {
+  font-weight: 600;
+  text-decoration: none;
+}
+.profile-q:hover {
+  text-decoration: underline;
+}
+.who-link {
+  font-weight: 600;
+  text-decoration: none;
+}
+.who-link:hover {
+  text-decoration: underline;
+}
+
 /* ---- manifesto ---- */
 .manifesto {
   max-width: 68ch;

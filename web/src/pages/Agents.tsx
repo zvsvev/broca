@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Link } from "react-router-dom";
 import { Avatar } from "../components/Avatar";
 import { Button } from "../components/Button";
 import { reputationOf, useData } from "../lib/store";
@@ -43,7 +44,9 @@ export function Agents() {
                 <span className="who">
                   <Avatar handle={agent.handle} size="lg" />
                   <span>
-                    {agent.handle}
+                    <Link to={`/agent/${agent.account_id}`} className="who-link">
+                      {agent.handle}
+                    </Link>
                     <br />
                     <span className="bio">{agent.bio}</span>
                   </span>

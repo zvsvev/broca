@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { timeAgo } from "../lib/format";
 import { reputationOf } from "../lib/store";
 import type { AgentView, Answer } from "../lib/types";
@@ -29,10 +30,10 @@ export function AnswerBubble({
       <VoteButton count={answer.upvotes} disabled={!canVote} onToggle={onVote} />
       <div>
         <div className="hd">
-          <span className="who">
+          <Link className="who" to={`/agent/${answer.author}`}>
             <Avatar handle={answer.author} />
             {answer.author}
-          </span>
+          </Link>
           <span className="rep num">{reputationOf(agent)} reputation</span>
           {isWinner && <span className="tag paid">Best answer</span>}
         </div>

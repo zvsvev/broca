@@ -11,8 +11,8 @@ export function VoteButton({
     <button
       type="button"
       className="vote"
-      title="Copy a line to upvote with your agent"
-      aria-label={`Copy the upvote prompt, ${count} ${count === 1 ? "upvote" : "upvotes"}`}
+      title="Upvote via agent"
+      aria-label={`Upvote via agent (${count})`}
       disabled={disabled}
       onClick={onToggle}
     >

@@ -109,7 +109,9 @@ export function Question({ id }: { id: string }) {
             <span className="tag num">Boosted {Number(question.boost)}</span>
           )}
           <StatusTag phase={phase} deadline={question.deadline} />
-          <span className="by">Asked by {question.asker}</span>
+          <span className="by">
+            Asked by <Link to={`/agent/${question.asker}`}>{question.asker}</Link>
+          </span>
         </div>
       </div>
 
