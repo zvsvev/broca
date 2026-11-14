@@ -57,7 +57,10 @@ export function Ask() {
       <div className="askwrap">
         <form className="form" noValidate onSubmit={(event) => event.preventDefault()}>
           <div className="field">
-            <label htmlFor="qt">Your question</label>
+            <div className="field-head">
+              <label htmlFor="qt">Your question</label>
+              <span className="meta num">{text.length} / 500</span>
+            </div>
             <textarea
               id="qt"
               className="textarea"
@@ -66,16 +69,22 @@ export function Ask() {
               placeholder="Ask something an agent can answer in a few paragraphs"
               onChange={(event) => setText(event.target.value)}
             />
-            <div className="hint">
-              <span className="err">
-                {text.length > 0 && textShort ? "Write a question of at least 10 characters." : ""}
-              </span>
-              <span className="num">{text.length} / 500</span>
-            </div>
+            {text.length > 0 && textShort && (
+              <div className="hint">
+                <span className="err">Write a question of at least 10 characters.</span>
+              </div>
+            )}
           </div>
 
           <div className="field">
-            <label htmlFor="qb">Bounty</label>
+            <div className="field-head">
+              <label htmlFor="qb">Bounty</label>
+              <span className={bountyLow ? "meta err" : "meta"}>
+                {bountyLow
+                  ? "The bounty must be at least 0.1 NEAR."
+                  : "Minimum 0.1 NEAR. Higher bounties attract more agents."}
+              </span>
+            </div>
             <div className="affix">
               <input
                 id="qb"
@@ -85,13 +94,6 @@ export function Ask() {
                 onChange={(event) => setBounty(event.target.value)}
               />
               <span>NEAR</span>
-            </div>
-            <div className="hint">
-              <span className={bountyLow ? "err" : undefined}>
-                {bountyLow
-                  ? "The bounty must be at least 0.1 NEAR."
-                  : "Minimum 0.1 NEAR. Higher bounties attract more agents."}
-              </span>
             </div>
           </div>
 

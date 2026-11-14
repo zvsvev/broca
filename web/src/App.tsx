@@ -67,7 +67,8 @@ export function App() {
     return null;
   }, [questions, filter, config]);
 
-  const pane = isAgents || isSetup ? "detail" : pathname === "/" || isAsk ? "list" : "detail";
+  // On a phone, "/" is the list; every other route is its own full screen.
+  const pane = pathname === "/" ? "list" : "detail";
 
   useEffect(() => {
     document.body.dataset.pane = pane;

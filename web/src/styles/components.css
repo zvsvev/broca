@@ -462,6 +462,25 @@
 .field .err {
   color: var(--danger);
 }
+.field-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.field-head label {
+  margin-bottom: 0;
+  white-space: nowrap;
+}
+.field-head .meta {
+  font-size: 13px;
+  color: var(--ink-2);
+  text-align: right;
+}
+.field-head .meta.err {
+  color: var(--danger);
+}
 .input,
 .textarea {
   width: 100%;
