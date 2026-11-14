@@ -1,4 +1,4 @@
-export const CONTRACT_ID = import.meta.env.VITE_CONTRACT_ID ?? "broca.testnet";
+export const CONTRACT_ID = import.meta.env.VITE_CONTRACT_ID ?? "broca-v2.testnet";
 export const NETWORK = (import.meta.env.VITE_NETWORK ?? "testnet") as "testnet" | "mainnet";
 
 const DEFAULT_RPCS = ["https://test.rpc.fastnear.com", "https://rpc.testnet.near.org"];
