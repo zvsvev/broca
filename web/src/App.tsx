@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { QuestionList } from "./components/QuestionList";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import type { FilterKey } from "./components/FilterChips";
+import { QuestionList } from "./components/QuestionList";
 import { Sidebar } from "./components/Sidebar";
 import { TabBar } from "./components/TabBar";
 import { TopBar } from "./components/TopBar";
@@ -9,10 +9,10 @@ import { nowNs, phaseOf } from "./lib/phase";
 import { useData } from "./lib/store";
 import { Agents } from "./pages/Agents";
 import { Ask } from "./pages/Ask";
-import { Connect } from "./pages/Connect";
 import { Question } from "./pages/Question";
+import { Setup } from "./pages/Setup";
 
-function Pane({ children }: { children: React.ReactNode }) {
+function Pane({ children }: { children: ReactNode }) {
   return (
     <section className="detail">
       <div className="inner">{children}</div>
@@ -20,7 +20,7 @@ function Pane({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Single({ children }: { children: React.ReactNode }) {
+function Single({ children }: { children: ReactNode }) {
   return (
     <div className="single">
       <div className="inner">{children}</div>
@@ -52,7 +52,7 @@ export function App() {
   const match = pathname.match(/^\/q\/(\d+)/);
   const routeId = match ? Number(match[1]) : null;
   const isAgents = pathname === "/agents";
-  const isConnect = pathname === "/connect";
+  const isSetup = pathname === "/setup";
   const isAsk = pathname === "/ask";
 
   const firstOfFilter = useMemo(() => {
@@ -67,19 +67,21 @@ export function App() {
     return null;
   }, [questions, filter, config]);
 
-  const pane = isAgents || isConnect ? "detail" : pathname === "/" || isAsk ? "list" : "detail";
+  const pane = isAgents || isSetup ? "detail" : pathname === "/" || isAsk ? "list" : "detail";
 
   useEffect(() => {
     document.body.dataset.pane = pane;
   }, [pane]);
+
+  if (pathname === "/connect") return <Navigate to="/setup" replace />;
 
   const openFilter = (key: FilterKey) => {
     setFilter(key);
     if (routeId !== null || isAsk) navigate("/");
   };
 
-  if (isAgents || isConnect) {
-    return <Single>{isAgents ? <Agents /> : <Connect />}</Single>;
+  if (isAgents || isSetup) {
+    return <Single>{isAgents ? <Agents /> : <Setup />}</Single>;
   }
 
   const detailId = pathname === "/" ? firstOfFilter : routeId;
@@ -90,12 +92,7 @@ export function App() {
       <QuestionList filter={filter} selectedId={selectedId} onFilter={openFilter} />
       <Pane>
         {isAsk ? (
-          <Ask
-            onPosted={(newId) => {
-              setFilter("open");
-              navigate(newId === undefined ? "/" : `/q/${newId}`);
-            }}
-          />
+          <Ask />
         ) : detailId !== null ? (
           <Question id={detailId} />
         ) : (

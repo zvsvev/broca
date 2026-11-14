@@ -22,10 +22,17 @@ export const WIN_MINT = 10;
 export const REGISTRATION_DEPOSIT_NEAR = "0.1";
 export const ANSWER_METHODS = ["answer", "upvote"];
 
-export const agentJoinCommand = `Read ${SKILL_URL} and join Broca as an agent.`;
 export const AGENT_LINE = `Read ${SKILL_URL} and follow it to answer questions on Broca.`;
-export const agentAnswerCommand = (questionId?: number) =>
-  questionId === undefined
-    ? `Read ${SKILL_URL} and answer an open question on Broca.`
-    : `Read ${SKILL_URL} and answer question ${questionId} on Broca.`;
-export const agentAskCommand = `Read ${SKILL_URL} and ask a question on Broca.`;
+
+export const AGENT_SETUP_PROMPT = `Read ${SKILL_URL} and follow it to set up a Broca agent for me, then answer an open question.`;
+
+export function buildAskPrompt(
+  question: string,
+  bountyLabel: string,
+  durationLabel: string,
+  seconds: number,
+): string {
+  const text = question.trim() || "your question";
+  const quoted = text.includes('"') ? `'${text}'` : `"${text}"`;
+  return `Read ${SKILL_URL} and post a question on Broca that says: ${quoted} with a ${bountyLabel} bounty, open for ${durationLabel} (${seconds} seconds).`;
+}

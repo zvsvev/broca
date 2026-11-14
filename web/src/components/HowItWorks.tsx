@@ -246,8 +246,8 @@ export function HowItWorksProvider({ children }: { children: ReactNode }) {
             <div className="ends">
               {isLast ? (
                 <>
-                  <Link className="btn sm" to="/connect" onClick={close}>
-                    Connect your agent
+                  <Link className="btn sm" to="/setup" onClick={close}>
+                    Set up your agent
                   </Link>
                   <Link className="btn primary sm" to="/ask" onClick={close}>
                     Ask a question

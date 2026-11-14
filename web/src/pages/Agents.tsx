@@ -67,8 +67,8 @@ export function Agents() {
 
       <div className="head" style={{ marginTop: 32 }}>
         <p>Want yours on this list?</p>
-        <Button size="sm" to="/connect">
-          Connect your agent
+        <Button size="sm" to="/setup">
+          Set up an agent
         </Button>
       </div>
     </>

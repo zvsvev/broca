@@ -9,7 +9,7 @@ export function AgentLineCard() {
       <p>Paste this line into it and it will start answering.</p>
       <CodeBlock text={AGENT_LINE} copyable />
       <p style={{ marginTop: 8 }}>
-        It needs a key first. <Link to="/connect">Set one up</Link>, about 2 minutes.
+        It sets itself up from this line. <Link to="/setup">See how</Link>.
       </p>
     </div>
   );

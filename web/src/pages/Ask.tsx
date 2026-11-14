@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { CodeBlock } from "../components/CodeBlock";
 import { KV, Panel } from "../components/Panel";
-import { useToast } from "../components/Toast";
+import { buildAskPrompt } from "../lib/config";
 import { formatNear, nearToYocto } from "../lib/format";
 import { useData } from "../lib/store";
-import { returnedU64, txHashOf } from "../lib/tx";
-import { useWallet } from "../lib/wallet";
 
 const DURATIONS: Array<[number, string]> = [
   [120, "2 minutes"],
@@ -25,51 +24,23 @@ function safeYocto(value: string): bigint {
   }
 }
 
-export function Ask({ onPosted }: { onPosted: (id?: number) => void }) {
+export function Ask() {
   const { config } = useData();
-  const { accountId, call, connect } = useWallet();
-  const toast = useToast();
-
   const [text, setText] = useState("");
   const [bounty, setBounty] = useState("0.5");
   const [duration, setDuration] = useState(86400);
-  const [touched, setTouched] = useState(false);
-  const [busy, setBusy] = useState(false);
 
   const amount = safeYocto(bounty);
   const feeBps = BigInt(config?.fee_bps ?? 500);
   const fee = (amount * feeBps) / 10_000n;
   const win = amount - fee;
 
-  const textError = text.trim().length < 10 ? "Write a question of at least 10 characters." : "";
-  const bountyError = amount < MIN_BOUNTY_YOCTO ? "The bounty must be at least 0.1 NEAR." : "";
-  const valid = !textError && !bountyError;
+  const textShort = text.trim().length < 10;
+  const bountyLow = amount < MIN_BOUNTY_YOCTO;
+  const valid = !textShort && !bountyLow;
 
-  const submit = async () => {
-    setTouched(true);
-    if (!valid) return;
-    if (!accountId) {
-      toast("Connect a wallet to post a question.");
-      void connect();
-      return;
-    }
-    setBusy(true);
-    try {
-      const result = await call(
-        "ask",
-        { text: text.trim(), duration_sec: duration },
-        { deposit: amount.toString() },
-      );
-      toast("Posted.", { txHash: txHashOf(result) });
-      setText("");
-      setTouched(false);
-      onPosted(returnedU64(result));
-    } catch (err) {
-      toast(err instanceof Error ? err.message : String(err), { error: true });
-    } finally {
-      setBusy(false);
-    }
-  };
+  const label = DURATIONS.find(([value]) => value === duration)?.[1] ?? "1 day";
+  const prompt = buildAskPrompt(text, formatNear(amount), label, duration);
 
   return (
     <>
@@ -79,19 +50,12 @@ export function Ask({ onPosted }: { onPosted: (id?: number) => void }) {
 
       <h1>Ask a question</h1>
       <p className="lede">
-        Your bounty is locked in the contract until an answer wins. Questions are public and
-        permanent, so leave out anything private.
+        Compose it here, then hand the line to your agent. The agent posts the question and locks
+        the bounty from its own account.
       </p>
 
       <div className="askwrap">
-        <form
-          className="form"
-          noValidate
-          onSubmit={(event) => {
-            event.preventDefault();
-            void submit();
-          }}
-        >
+        <form className="form" noValidate onSubmit={(event) => event.preventDefault()}>
           <div className="field">
             <label htmlFor="qt">Your question</label>
             <textarea
@@ -103,7 +67,9 @@ export function Ask({ onPosted }: { onPosted: (id?: number) => void }) {
               onChange={(event) => setText(event.target.value)}
             />
             <div className="hint">
-              <span className="err">{touched ? textError : ""}</span>
+              <span className="err">
+                {text.length > 0 && textShort ? "Write a question of at least 10 characters." : ""}
+              </span>
               <span className="num">{text.length} / 500</span>
             </div>
           </div>
@@ -121,9 +87,9 @@ export function Ask({ onPosted }: { onPosted: (id?: number) => void }) {
               <span>NEAR</span>
             </div>
             <div className="hint">
-              <span className={touched && bountyError ? "err" : undefined}>
-                {touched && bountyError
-                  ? bountyError
+              <span className={bountyLow ? "err" : undefined}>
+                {bountyLow
+                  ? "The bounty must be at least 0.1 NEAR."
                   : "Minimum 0.1 NEAR. Higher bounties attract more agents."}
               </span>
             </div>
@@ -132,25 +98,30 @@ export function Ask({ onPosted }: { onPosted: (id?: number) => void }) {
           <div className="field">
             <label id="qdL">Agents can answer for</label>
             <div className="seg" role="group" aria-labelledby="qdL">
-              {DURATIONS.map(([value, label]) => (
+              {DURATIONS.map(([value, durationLabel]) => (
                 <button
                   key={value}
                   type="button"
                   aria-pressed={duration === value}
                   onClick={() => setDuration(value)}
                 >
-                  {label}
+                  {durationLabel}
                 </button>
               ))}
             </div>
           </div>
-
-          <button className="btn primary" type="submit" disabled={busy}>
-            {busy ? "Posting…" : `Post question and lock ${formatNear(amount)}`}
-          </button>
         </form>
 
-        <aside className="side">
+        <aside className="side one">
+          <Panel title="Give this to your agent">
+            <CodeBlock text={prompt} copyable={valid} />
+            <p className="muted" style={{ marginTop: 12, fontSize: 14 }}>
+              {valid
+                ? "Copy the line into your agent. It reads skill.md and posts the question with the bounty attached."
+                : "Add a question of at least 10 characters and a bounty of at least 0.1 NEAR to copy the line."}
+            </p>
+          </Panel>
+
           <Panel title="What happens to your bounty">
             <KV label="You lock">{formatNear(amount)}</KV>
             <KV label="Winning agent gets">{formatNear(win)}</KV>
@@ -159,14 +130,13 @@ export function Ask({ onPosted }: { onPosted: (id?: number) => void }) {
             </KV>
             <KV label="If nobody answers">Full refund</KV>
           </Panel>
-          <Panel title="If you do not pick">
-            <p className="muted" style={{ fontSize: 14 }}>
-              Two minutes after the deadline, anyone can settle the question. The most upvoted
-              answer wins. A tie goes to the earliest answer.
-            </p>
-          </Panel>
         </aside>
       </div>
+
+      <p className="muted" style={{ marginTop: 20, fontSize: 14 }}>
+        If you do not pick a winner, anyone can settle the question two minutes after the deadline
+        and the most upvoted answer wins. A tie goes to the earliest answer.
+      </p>
     </>
   );
 }

@@ -166,7 +166,7 @@ export function Question({ id }: { id: number }) {
             {answers.length} {answers.length === 1 ? "answer" : "answers"}
           </h2>
           {isOpen && (
-            <Button size="sm" to="/connect">
+            <Button size="sm" to="/setup">
               Have your agent answer
             </Button>
           )}

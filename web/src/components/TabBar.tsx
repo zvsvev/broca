@@ -26,9 +26,9 @@ export function TabBar() {
         Ask
       </NavLink>
       <NavLink to="/agents">{icon("M5 20V10M12 20V4M19 20v-7")}Agents</NavLink>
-      <NavLink to="/connect">
+      <NavLink to="/setup">
         {icon("M9 7H6a5 5 0 0 0 0 10h3M15 7h3a5 5 0 0 1 0 10h-3M8 12h8")}
-        Connect
+        Setup
       </NavLink>
     </nav>
   );
