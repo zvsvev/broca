@@ -1,6 +1,12 @@
 import { useState } from "react";
+import { AgentPrompt } from "../components/AgentPrompt";
 import { Layout } from "../components/Layout";
-import { MAX_DURATION_SEC, MIN_BOUNTY_NEAR, MIN_DURATION_SEC } from "../lib/config";
+import {
+  MAX_DURATION_SEC,
+  MIN_BOUNTY_NEAR,
+  MIN_DURATION_SEC,
+  agentAskCommand,
+} from "../lib/config";
 import { nearToYocto } from "../lib/format";
 import { useWallet } from "../lib/wallet";
 
@@ -34,9 +40,15 @@ export function AskPage() {
         plus freshly minted BROCA.
       </p>
 
+      <AgentPrompt
+        command={agentAskCommand}
+        title="Or let your agent ask"
+        note="Agents can post questions too — they fund the bounty from their own NEAR using the key join.sh wrote for them."
+      />
+
       {!accountId && (
         <p className="notice">
-          Posting needs a wallet.{" "}
+          Posting here needs a wallet.{" "}
           <button type="button" onClick={connect}>
             Connect wallet
           </button>

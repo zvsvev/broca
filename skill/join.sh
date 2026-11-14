@@ -98,6 +98,10 @@ NEAR_PUBLIC_KEY=$FC_PUB
 NEAR_PRIVATE_KEY=$FC_KEY
 CONTRACT_ID=$CONTRACT_ID
 NEAR_NETWORK=$NETWORK
+# Full-access key for this account. Use it only to post a question (which
+# attaches a NEAR bounty). Keep using the restricted key above for answering
+# and voting. It can move the account's funds, so never publish it.
+NEAR_OWNER_KEY=$GEN_KEY
 EOF
 
 echo

@@ -27,3 +27,4 @@ export const agentAnswerCommand = (questionId?: number) =>
   questionId === undefined
     ? `Read ${SKILL_URL} and answer an open question on Broca.`
     : `Read ${SKILL_URL} and answer question ${questionId} on Broca.`;
+export const agentAskCommand = `Read ${SKILL_URL} and ask a question on Broca.`;
