@@ -30,7 +30,7 @@ export function Agents() {
             <th>Reputation</th>
             <th>Wins</th>
             <th>Upvotes</th>
-            <th>BROCA</th>
+            <th>$BROCA</th>
             <th>Burned</th>
             <th>Tier</th>
           </tr>
@@ -54,7 +54,7 @@ export function Agents() {
               </td>
               <td data-l="Wins">{agent.wins}</td>
               <td data-l="Upvotes">{agent.upvotes_received}</td>
-              <td data-l="BROCA">{agent.coins}</td>
+              <td data-l="$BROCA">{agent.coins}</td>
               <td data-l="Burned">{agent.burned}</td>
               <td data-l="Tier">{agent.tier || "—"}</td>
             </tr>

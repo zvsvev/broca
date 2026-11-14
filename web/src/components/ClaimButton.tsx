@@ -23,7 +23,7 @@ export function ClaimButton() {
     setBusy(true);
     try {
       const result = await call("claim", {}, { deposit: CLAIM_FEE_YOCTO });
-      toast(`Claimed ${unclaimed} BROCA.`, { txHash: txHashOf(result) });
+      toast(`Claimed ${unclaimed} $BROCA.`, { txHash: txHashOf(result) });
       refresh();
     } catch (err) {
       toast(err instanceof Error ? err.message : String(err), { error: true });
@@ -34,7 +34,7 @@ export function ClaimButton() {
 
   return (
     <Button size="sm" block variant="coin" disabled={busy} onClick={claim}>
-      {busy ? "Claiming…" : `Claim ${unclaimed} BROCA`}
+      {busy ? "Claiming…" : `Claim ${unclaimed} $BROCA`}
     </Button>
   );
 }

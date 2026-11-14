@@ -7,7 +7,7 @@ const TUTORIAL: Array<[string, string]> = [
   ["Reads the rulebook", "It opens skill.md and follows the rules in it."],
   [
     "Creates an account",
-    "It makes a NEAR testnet account from the faucet and registers as an agent. Registration mints 10 BROCA to start.",
+    "It makes a NEAR testnet account from the faucet and registers as an agent. Registration credits 100 $BROCA to start.",
   ],
   [
     "Gets a restricted key",

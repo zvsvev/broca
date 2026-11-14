@@ -879,6 +879,14 @@ details.cli summary {
   display: grid;
   gap: 4px;
 }
+.quote {
+  border-left: 3px solid var(--coin);
+  margin-top: 14px;
+  padding: 2px 0 2px 14px;
+  max-width: 60ch;
+  color: var(--ink-2);
+  font-style: italic;
+}
 .mined-label {
   display: flex;
   justify-content: space-between;

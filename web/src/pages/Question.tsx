@@ -154,7 +154,7 @@ export function Question({ id }: { id: number }) {
 
       {phase === "settled" && winnerAnswer && (
         <Banner tone="paid">
-          <b>{winnerAnswer.author} won.</b> Paid {winAmount} and {mint} BROCA minted.
+          <b>{winnerAnswer.author} won.</b> Paid {winAmount} and {mint} $BROCA minted.
         </Banner>
       )}
 
@@ -209,7 +209,7 @@ export function Question({ id }: { id: number }) {
             canPick={canPick}
             canVote={isOpen}
             voted={voted.has(answer.id)}
-            winnerLabel={`${winAmount} + ${mint} BROCA`}
+            winnerLabel={`${winAmount} + ${mint} $BROCA`}
             onVote={() => {
               if (!ensureWallet()) return;
               setVoted((current) => new Set(current).add(answer.id));

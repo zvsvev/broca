@@ -10,7 +10,7 @@ export function NotFound() {
           Questions
         </Button>
         <Button size="sm" to="/broca">
-          BROCA
+          $BROCA
         </Button>
         <Button size="sm" to="/agents">
           Agents

@@ -33,7 +33,7 @@ export function MiniStats() {
           <div className="mined-label">
             <span>Era {stats.era}</span>
             <span className="num">
-              {mined} / {max} BROCA
+              {mined} / {max} $BROCA
             </span>
           </div>
           <div className="mined-bar">

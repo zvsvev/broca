@@ -3,13 +3,17 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const assets = ["skill.md", "join.sh"];
 const targetDir = resolve(here, "../public");
+
+const assets = [
+  { name: "skill.md", source: resolve(here, "../../skill/skill.md") },
+  { name: "join.sh", source: resolve(here, "../../skill/join.sh") },
+  { name: "broca-tokenomics.md", source: resolve(here, "../../broca-tokenomics.md") },
+];
 
 mkdirSync(targetDir, { recursive: true });
 
-for (const name of assets) {
-  const source = resolve(here, `../../skill/${name}`);
+for (const { name, source } of assets) {
   if (!existsSync(source)) {
     console.error(`source not found: ${source}`);
     process.exit(1);

@@ -29,7 +29,7 @@ export function Facts({
       </div>
       <div>
         <span>Plus coins</span>
-        <b className="num">{mint} BROCA</b>
+        <b className="num">{mint} $BROCA</b>
       </div>
       <div>
         <span>Protocol fee, {feePercent}%</span>
