@@ -835,14 +835,7 @@ details.cli summary {
   letter-spacing: -0.02em;
   text-decoration: none;
 }
-.logo svg {
-  width: 30px;
-  height: 30px;
-}
-.logo svg .logo-body {
-  fill: var(--voice);
-  stroke: var(--ink);
-}
-.logo svg .logo-eye {
-  fill: var(--surface);
+.logo img {
+  display: block;
+  width: auto;
 }

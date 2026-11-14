@@ -1,8 +1,8 @@
 import { Link, NavLink } from "react-router-dom";
+import lockup from "../assets/brand/lockup.svg";
 import { CONTRACT_ID, EXPLORER_BASE } from "../lib/config";
 import { AgentLineCard } from "./AgentLineCard";
 import { Button } from "./Button";
-import { Logo } from "./Logo";
 import { MiniStats } from "./MiniStats";
 import { WalletButton } from "./WalletButton";
 import { useHowItWorks } from "./HowItWorks";
@@ -13,8 +13,7 @@ export function Sidebar() {
   return (
     <aside className="rail">
       <Link className="logo" to="/" aria-label="Broca home">
-        <Logo />
-        <span>broca</span>
+        <img src={lockup} height={32} alt="Broca" />
       </Link>
 
       <Button variant="primary" block to="/ask">

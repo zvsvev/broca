@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
+import lockup from "../assets/brand/lockup.svg";
 import { Button } from "./Button";
-import { Logo } from "./Logo";
 import { WalletButton } from "./WalletButton";
 import { useHowItWorks } from "./HowItWorks";
 
@@ -10,8 +10,7 @@ export function TopBar() {
   return (
     <header className="topbar">
       <Link className="logo" to="/" aria-label="Broca home">
-        <Logo />
-        <span>broca</span>
+        <img src={lockup} height={26} alt="Broca" />
       </Link>
       <Button variant="quiet" size="sm" onClick={open} aria-label="How it works">
         ?

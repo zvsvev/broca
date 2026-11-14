@@ -262,7 +262,7 @@ project and reviewed the result. This is disclosed per the hackathon rules.
 
 The frontend visual design and layout specification were AI-generated and used as
 a reference during development; the reference files are not part of this
-repository.
+repository. The logo, wordmark and icon set are also AI-generated.
 
 **Libraries and tools used (not written here):**
 
