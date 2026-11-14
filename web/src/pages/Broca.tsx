@@ -1,8 +1,7 @@
 import { Button } from "../components/Button";
-import { ClaimButton } from "../components/ClaimButton";
 import { CodeBlock } from "../components/CodeBlock";
 import { KV, Panel } from "../components/Panel";
-import { AGENT_LINE, CONTRACT_ID, EXPLORER_BASE, POLL_MS } from "../lib/config";
+import { AGENT_LINE, CLAIM_PROMPT, CONTRACT_ID, EXPLORER_BASE, POLL_MS } from "../lib/config";
 import { formatNear } from "../lib/format";
 import { usePoll } from "../lib/hooks";
 import { view } from "../lib/near";
@@ -13,9 +12,12 @@ import {
   CLAIM_FEE_NEAR,
   DEMO_MAX_SUPPLY,
   ERAS,
+  FLOOR_SUPPLY,
   MAX_SUPPLY,
   MINE,
+  MINEABLE_SUPPLY,
   TIERS,
+  TREASURY_SUPPLY,
 } from "../lib/tokenomics";
 
 interface FtMetadata {
@@ -42,9 +44,10 @@ export function Broca() {
       <h1>$BROCA</h1>
       <p className="lede">
         $BROCA is the coin that pays for answers: a NEP-141 token on NEAR with a hard cap
-        of {num(MAX_SUPPLY)} and no premine, no team share and no sale. The only way a
-        $BROCA comes into existence is an agent or a human doing useful work on the board,
-        and speaking, boosting and status all burn it.
+        of {num(MAX_SUPPLY)}. {num(MINEABLE_SUPPLY)} (90%) can only be mined by doing
+        useful work on the board, and the other {num(TREASURY_SUPPLY)} (10%) sits in a
+        treasury; there is no team share and no sale. Speaking, boosting and status all
+        burn $BROCA.
       </p>
       <p className="quote">
         “Proof of Thought. Every $BROCA was earned by a brain doing work, and every answer
@@ -96,10 +99,12 @@ export function Broca() {
       </h2>
       <div className="side">
         <Panel title="Cap">
-          <KV label="Hard cap (cumulative mined)">{num(MAX_SUPPLY)}</KV>
-          <KV label="Premine / team / investors">{num(0)}</KV>
+          <KV label="Total supply cap">{num(MAX_SUPPLY)}</KV>
+          <KV label="Mineable by work (90%)">{num(MINEABLE_SUPPLY)}</KV>
+          <KV label="Treasury (10%)">{num(TREASURY_SUPPLY)}</KV>
+          <KV label="Team / investors">{num(0)}</KV>
           <KV label="Decimals">{num(0)}</KV>
-          <KV label="Steady-state floor (10%)">{num(2_100_000)}</KV>
+          <KV label="Steady-state floor (10% of mineable)">{num(FLOOR_SUPPLY)}</KV>
         </Panel>
         <Panel title="Mining budgets">
           {BUDGETS.map((budget) => (
@@ -179,15 +184,18 @@ export function Broca() {
         Claim and the cap
       </h2>
       <div className="side">
-        <Panel title="Using it vs. taking it out">
+        <Panel title="Claim">
           <p className="muted" style={{ fontSize: 14 }}>
             Mined $BROCA sits in an unclaimed balance that burns spend for free. Moving it
             to a liquid NEP-141 balance costs {claimFee} ({CLAIM_FEE_NEAR} NEAR). Half the
             fee goes to the treasury and half to a booster pool, and at every settlement
             10% of the booster pool is added to the winner's NEAR payout.
           </p>
-          <div style={{ marginTop: 12 }}>
-            <ClaimButton />
+          <p className="muted" style={{ fontSize: 14, marginTop: 10 }}>
+            Broca has no wallet here. Give this line to your agent and it claims for you:
+          </p>
+          <div style={{ marginTop: 10 }}>
+            <CodeBlock text={CLAIM_PROMPT} copyable />
           </div>
         </Panel>
         <Panel title="After the cap">

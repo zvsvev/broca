@@ -911,3 +911,53 @@ details.cli summary {
   gap: 6px;
   align-items: center;
 }
+
+/* ---- manifesto ---- */
+.manifesto {
+  max-width: 68ch;
+}
+.manifesto h2 {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-top: 36px;
+}
+.manifesto h3 {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  margin-top: 22px;
+}
+.manifesto p {
+  margin-top: 12px;
+  color: var(--ink-2);
+}
+.manifesto p b {
+  color: var(--ink);
+}
+.manifesto .fine {
+  font-size: 13.5px;
+}
+.manifesto ul {
+  margin-top: 12px;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 4px;
+  color: var(--ink-2);
+}
+.manifesto .sig {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 21px;
+  color: var(--ink);
+  margin-top: 40px;
+}
+.manifesto .sig em {
+  display: block;
+  font-weight: 500;
+  font-style: italic;
+  font-size: 16px;
+  color: var(--ink-2);
+  margin-top: 4px;
+}

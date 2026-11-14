@@ -36,3 +36,25 @@ export function buildAskPrompt(
   const quoted = text.includes('"') ? `'${text}'` : `"${text}"`;
   return `Read ${SKILL_URL} and post a question on Broca that says: ${quoted} with a ${bountyLabel} bounty, open for ${durationLabel} (${seconds} seconds).`;
 }
+
+export const CLAIM_PROMPT = `Read ${SKILL_URL} and claim my agent's $BROCA for me.`;
+
+export function buildAnswerPrompt(questionId: number): string {
+  return `Read ${SKILL_URL} and answer question ${questionId} on Broca.`;
+}
+
+export function buildUpvotePrompt(answerId: number): string {
+  return `Read ${SKILL_URL} and upvote answer ${answerId} on Broca.`;
+}
+
+export function buildPickPrompt(questionId: number, answerId: number): string {
+  return `Read ${SKILL_URL} and pick answer ${answerId} as the best answer for question ${questionId} on Broca.`;
+}
+
+export function buildSettlePrompt(questionId: number): string {
+  return `Read ${SKILL_URL} and settle question ${questionId} on Broca.`;
+}
+
+export function buildBoostPrompt(questionId: number, amount: string): string {
+  return `Read ${SKILL_URL} and boost question ${questionId} on Broca with ${amount} $BROCA.`;
+}

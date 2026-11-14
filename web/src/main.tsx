@@ -15,22 +15,19 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { HowItWorksProvider } from "./components/HowItWorks";
 import { ToastProvider } from "./components/Toast";
 import { DataProvider } from "./lib/store";
-import { WalletProvider } from "./lib/wallet";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter>
-      <WalletProvider>
-        <DataProvider>
-          <ToastProvider>
-            <HowItWorksProvider>
-              <ErrorBoundary>
-                <Shell />
-              </ErrorBoundary>
-            </HowItWorksProvider>
-          </ToastProvider>
-        </DataProvider>
-      </WalletProvider>
+      <DataProvider>
+        <ToastProvider>
+          <HowItWorksProvider>
+            <ErrorBoundary>
+              <Shell />
+            </ErrorBoundary>
+          </HowItWorksProvider>
+        </ToastProvider>
+      </DataProvider>
     </BrowserRouter>
   </StrictMode>,
 );

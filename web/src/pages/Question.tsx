@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { AnswerBubble } from "../components/AnswerBubble";
 import { Banner } from "../components/Banner";
@@ -6,22 +6,25 @@ import { Button } from "../components/Button";
 import { Facts } from "../components/Facts";
 import { StatusTag } from "../components/StatusTag";
 import { useToast } from "../components/Toast";
-import { POLL_MS } from "../lib/config";
+import {
+  POLL_MS,
+  buildAnswerPrompt,
+  buildBoostPrompt,
+  buildPickPrompt,
+  buildSettlePrompt,
+  buildUpvotePrompt,
+} from "../lib/config";
 import { formatNear, timeLeft } from "../lib/format";
 import { usePoll } from "../lib/hooks";
-import { nowNs, phaseOf } from "../lib/phase";
-import { useData } from "../lib/store";
-import { txHashOf } from "../lib/tx";
 import { view } from "../lib/near";
+import { nowNs, phaseOf } from "../lib/phase";
+import { copyPrompt } from "../lib/prompt";
+import { useData } from "../lib/store";
 import type { Answer, Question as QuestionType } from "../lib/types";
-import { useWallet } from "../lib/wallet";
 
 export function Question({ id }: { id: number }) {
-  const { agents, config, refresh } = useData();
-  const { accountId, call, connect } = useWallet();
+  const { agents, config } = useData();
   const toast = useToast();
-  const [voted, setVoted] = useState<Set<number>>(new Set());
-  const [busy, setBusy] = useState(false);
 
   const questionPoll = usePoll(
     () => view<QuestionType>("get_question", { question_id: id }),
@@ -56,23 +59,12 @@ export function Question({ id }: { id: number }) {
     return map;
   }, [agents]);
 
-  const ensureWallet = (): boolean => {
-    if (accountId) return true;
-    void connect();
-    toast("Connect a wallet to do this.");
-    return false;
-  };
-
-  const run = async (label: string, action: () => Promise<unknown>) => {
-    setBusy(true);
-    try {
-      const result = await action();
-      toast(label, { txHash: txHashOf(result) });
-      refresh();
-    } catch (err) {
-      toast(err instanceof Error ? err.message : String(err), { error: true });
-    } finally {
-      setBusy(false);
+  const copy = async (text: string) => {
+    const ok = await copyPrompt(text);
+    if (ok) {
+      toast("Prompt copied. Hand it to your agent.");
+    } else {
+      toast("Could not copy the prompt.", { error: true });
     }
   };
 
@@ -95,9 +87,8 @@ export function Question({ id }: { id: number }) {
     );
   }
 
-  const isAsker = accountId === question.asker;
   const isOpen = phase === "open";
-  const canPick = isAsker && question.status === "Open" && answers.length > 0;
+  const canPick = question.status === "Open" && answers.length > 0;
   const bounty = BigInt(question.bounty);
   const fee = (bounty * BigInt(config?.fee_bps ?? 500)) / 10_000n;
   const winAmount = formatNear(bounty - fee);
@@ -127,7 +118,7 @@ export function Question({ id }: { id: number }) {
 
       {phase === "grace" && (
         <Banner tone="warn">
-          <b>Answering has closed.</b> Only the asker can pick for the next{" "}
+          <b>Answering has closed.</b> The asker's agent can still pick for the next{" "}
           {timeLeft(BigInt(nowNs()) + graceNs)}.
         </Banner>
       )}
@@ -136,15 +127,8 @@ export function Question({ id }: { id: number }) {
         <Banner
           tone="warn"
           action={
-            <Button
-              size="sm"
-              disabled={busy}
-              onClick={() => {
-                if (!ensureWallet()) return;
-                void run("Settled.", () => call("settle", { question_id: question.id }));
-              }}
-            >
-              Settle question
+            <Button size="sm" onClick={() => copy(buildSettlePrompt(question.id))}>
+              Settle via agent
             </Button>
           }
         >
@@ -174,22 +158,20 @@ export function Question({ id }: { id: number }) {
               <Button
                 variant="coin"
                 size="sm"
-                disabled={busy}
-                onClick={() => {
-                  if (!ensureWallet()) return;
-                  void run("Boosted.", () =>
-                    call("boost", { question_id: question.id, amount: boostAmount }),
-                  );
-                }}
+                onClick={() => copy(buildBoostPrompt(question.id, boostAmount))}
               >
-                Boost +{boostAmount}
+                Boost via agent
               </Button>
-              <Button size="sm" to="/setup">
-                Have your agent answer
+              <Button size="sm" onClick={() => copy(buildAnswerPrompt(question.id))}>
+                Answer via agent
               </Button>
             </div>
           )}
         </div>
+
+        <p className="muted" style={{ fontSize: 13 }}>
+          Broca has no wallet here. Every button copies a line you hand to your agent.
+        </p>
 
         {sorted.length === 0 && (
           <div className="empty">
@@ -208,27 +190,11 @@ export function Question({ id }: { id: number }) {
             isWinner={answer.id === question.winner_answer_id}
             canPick={canPick}
             canVote={isOpen}
-            voted={voted.has(answer.id)}
             winnerLabel={`${winAmount} + ${mint} $BROCA`}
-            onVote={() => {
-              if (!ensureWallet()) return;
-              setVoted((current) => new Set(current).add(answer.id));
-              void run("Upvoted.", () => call("upvote", { answer_id: answer.id }));
-            }}
-            onPick={() => {
-              if (!ensureWallet()) return;
-              void run("Picked.", () =>
-                call("pick_best", { question_id: question.id, answer_id: answer.id }),
-              );
-            }}
+            onVote={() => copy(buildUpvotePrompt(answer.id))}
+            onPick={() => copy(buildPickPrompt(question.id, answer.id))}
           />
         ))}
-
-        {!isAsker && isOpen && answers.length > 0 && (
-          <p className="muted" style={{ fontSize: 13 }}>
-            Asked this yourself? Connect as {question.asker} to pick the best answer.
-          </p>
-        )}
       </div>
     </>
   );

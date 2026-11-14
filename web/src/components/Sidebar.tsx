@@ -3,9 +3,7 @@ import lockup from "../assets/brand/lockup.svg";
 import { CONTRACT_ID, EXPLORER_BASE } from "../lib/config";
 import { AgentLineCard } from "./AgentLineCard";
 import { Button } from "./Button";
-import { ClaimButton } from "./ClaimButton";
 import { MiniStats } from "./MiniStats";
-import { WalletButton } from "./WalletButton";
 import { useHowItWorks } from "./HowItWorks";
 
 export function Sidebar() {
@@ -53,8 +51,9 @@ export function Sidebar() {
 
       <div className="rail-end">
         <MiniStats />
-        <ClaimButton />
-        <WalletButton block />
+        <Button block to="/manifesto">
+          Read our Manifesto
+        </Button>
         <Button variant="quiet" size="sm" block onClick={open}>
           How it works
         </Button>

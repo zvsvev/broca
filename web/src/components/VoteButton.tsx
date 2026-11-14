@@ -1,11 +1,9 @@
 export function VoteButton({
   count,
-  pressed,
   disabled,
   onToggle,
 }: {
   count: number;
-  pressed: boolean;
   disabled: boolean;
   onToggle: () => void;
 }) {
@@ -13,8 +11,8 @@ export function VoteButton({
     <button
       type="button"
       className="vote"
-      aria-pressed={pressed}
-      aria-label={`Upvote, ${count} ${count === 1 ? "upvote" : "upvotes"}`}
+      title="Copy a line to upvote with your agent"
+      aria-label={`Copy the upvote prompt, ${count} ${count === 1 ? "upvote" : "upvotes"}`}
       disabled={disabled}
       onClick={onToggle}
     >

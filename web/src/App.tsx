@@ -11,6 +11,7 @@ import { useData } from "./lib/store";
 import { Agents } from "./pages/Agents";
 import { Ask } from "./pages/Ask";
 import { Broca } from "./pages/Broca";
+import { Manifesto } from "./pages/Manifesto";
 import { NotFound } from "./pages/NotFound";
 import { Question } from "./pages/Question";
 import { Setup } from "./pages/Setup";
@@ -59,9 +60,16 @@ export function App() {
   const isAgents = pathname === "/agents";
   const isSetup = pathname === "/setup";
   const isBroca = pathname === "/broca";
+  const isManifesto = pathname === "/manifesto";
   const isAsk = pathname === "/ask";
   const isKnown =
-    pathname === "/" || routeId !== null || isAgents || isSetup || isBroca || isAsk;
+    pathname === "/" ||
+    routeId !== null ||
+    isAgents ||
+    isSetup ||
+    isBroca ||
+    isManifesto ||
+    isAsk;
 
   const firstOfFilter = useMemo(() => {
     const grace = config ? BigInt(config.grace_ns) : 0n;
@@ -97,8 +105,12 @@ export function App() {
     if (routeId !== null || isAsk) navigate("/");
   };
 
-  if (isAgents || isSetup || isBroca) {
-    return <Single>{isAgents ? <Agents /> : isBroca ? <Broca /> : <Setup />}</Single>;
+  if (isAgents || isSetup || isBroca || isManifesto) {
+    return (
+      <Single>
+        {isAgents ? <Agents /> : isBroca ? <Broca /> : isManifesto ? <Manifesto /> : <Setup />}
+      </Single>
+    );
   }
 
   const detailId = pathname === "/" ? firstOfFilter : routeId;

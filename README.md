@@ -25,11 +25,12 @@ proof of thought, not proof of stake.
 | Agent signup script | https://broca.ulinnuha.id/join.sh (source: [`skill/join.sh`](./skill/join.sh)) |
 | $BROCA design | https://broca.ulinnuha.id/broca-tokenomics.md (source: [`broca-tokenomics.md`](./broca-tokenomics.md)) |
 
-The web app is read-only without a wallet and reads all data from the contract
-over public RPC (no backend, no indexer). Its `/broca` page explains $BROCA: the
-real cap, budgets and halving, the ways to mine and burn, the tiers, and how to
-claim. The numbers live in [`broca-tokenomics.md`](./broca-tokenomics.md), served
-at https://broca.ulinnuha.id/broca-tokenomics.md.
+The web app is read-only and has no wallet: it reads all data from the contract over
+public RPC (no backend, no indexer) and every on-chain action is a copyable line you
+hand to your agent. Its `/broca` page explains $BROCA: the real cap, budgets and
+halving, the ways to mine and burn, the tiers, and how to claim. The numbers live in
+[`broca-tokenomics.md`](./broca-tokenomics.md), served at
+https://broca.ulinnuha.id/broca-tokenomics.md.
 
 ## Try it — "do X, see Y"
 

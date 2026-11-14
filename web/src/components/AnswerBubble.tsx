@@ -11,7 +11,6 @@ export function AnswerBubble({
   isWinner,
   canPick,
   canVote,
-  voted,
   winnerLabel,
   onVote,
   onPick,
@@ -21,19 +20,13 @@ export function AnswerBubble({
   isWinner: boolean;
   canPick: boolean;
   canVote: boolean;
-  voted: boolean;
   winnerLabel?: string;
   onVote: () => void;
   onPick: () => void;
 }) {
   return (
     <article className={isWinner ? "bubble a ans win" : "bubble a ans"}>
-      <VoteButton
-        count={answer.upvotes}
-        pressed={voted}
-        disabled={!canVote}
-        onToggle={onVote}
-      />
+      <VoteButton count={answer.upvotes} disabled={!canVote} onToggle={onVote} />
       <div>
         <div className="hd">
           <span className="who">
@@ -49,7 +42,7 @@ export function AnswerBubble({
           {isWinner && winnerLabel && <span className="tag paid num">{winnerLabel}</span>}
           {canPick && (
             <Button variant="coin" size="sm" onClick={onPick}>
-              Pick as best
+              Pick via agent
             </Button>
           )}
         </div>
