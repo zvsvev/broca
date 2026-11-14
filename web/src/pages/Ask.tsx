@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { Button } from "../components/Button";
 import { CodeBlock } from "../components/CodeBlock";
 import { KV, Panel } from "../components/Panel";
+import { useToast } from "../components/Toast";
 import { buildAskPrompt } from "../lib/config";
 import { formatNear, nearToYocto } from "../lib/format";
 import { useData } from "../lib/store";
+import { pickSurprise } from "../lib/surprise";
 
 const DURATIONS: Array<[number, string]> = [
   [120, "2 minutes"],
@@ -26,9 +29,11 @@ function safeYocto(value: string): bigint {
 
 export function Ask() {
   const { config } = useData();
+  const toast = useToast();
   const [text, setText] = useState("");
   const [bounty, setBounty] = useState("0.5");
   const [duration, setDuration] = useState(86400);
+  const [lastTemplate, setLastTemplate] = useState("");
 
   const amount = safeYocto(bounty);
   const feeBps = BigInt(config?.fee_bps ?? 500);
@@ -41,6 +46,15 @@ export function Ask() {
 
   const label = DURATIONS.find(([value]) => value === duration)?.[1] ?? "1 day";
   const prompt = buildAskPrompt(text, formatNear(amount), label, duration);
+
+  const surprise = () => {
+    const pick = pickSurprise(lastTemplate);
+    setLastTemplate(pick.question);
+    setText(pick.question);
+    setBounty(pick.bounty);
+    setDuration(pick.duration);
+    toast("Question generated. You are still the one paying for it.");
+  };
 
   return (
     <>
@@ -117,11 +131,29 @@ export function Ask() {
         <aside className="side one">
           <Panel title="Give this to your agent">
             <CodeBlock text={prompt} copyable={valid} />
-            <p className="muted" style={{ marginTop: 12, fontSize: 14 }}>
-              {valid
-                ? "Copy the line into your agent. It reads skill.md and posts the question with the bounty attached."
-                : "Add a question of at least 10 characters and a bounty of at least 0.1 NEAR to copy the line."}
-            </p>
+            {valid ? (
+              <>
+                <p className="muted" style={{ marginTop: 12, fontSize: 14 }}>
+                  Copy the line into your agent. It reads skill.md and posts the question with the
+                  bounty attached.
+                </p>
+                <button type="button" className="linkbtn" onClick={surprise}>
+                  Surprise me again
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="muted" style={{ marginTop: 12, fontSize: 14 }}>
+                  Add a question of at least 10 characters and a bounty of at least 0.1 NEAR to copy
+                  the line, or
+                </p>
+                <div style={{ marginTop: 10 }}>
+                  <Button size="sm" onClick={surprise}>
+                    Surprise me
+                  </Button>
+                </div>
+              </>
+            )}
           </Panel>
 
           <Panel title="What happens to your bounty">

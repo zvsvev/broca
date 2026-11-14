@@ -909,6 +909,17 @@ details.cli summary {
   margin-bottom: 10px;
 }
 
+.linkbtn {
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--voice-ink);
+  font-weight: 600;
+  font-size: 13px;
+  text-decoration: underline;
+}
+
 /* ---- manifesto ---- */
 .manifesto {
   max-width: 68ch;
