@@ -23,3 +23,7 @@ credentials.json
 .idea/
 .vscode/
 *.log
+
+# Local tooling / planning notes
+.commandcode/
+prd-broca.md
