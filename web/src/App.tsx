@@ -5,6 +5,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { QuestionList } from "./components/QuestionList";
 import { Sidebar } from "./components/Sidebar";
 import { TabBar } from "./components/TabBar";
+import { TabSlide } from "./components/TabSlide";
 import { TopBar } from "./components/TopBar";
 import { nowNs, phaseOf } from "./lib/phase";
 import { useData } from "./lib/store";
@@ -34,18 +35,27 @@ function Single({ children }: { children: ReactNode }) {
 }
 
 export function Shell() {
+  const { questions, config } = useData();
+  const openCount = useMemo(() => {
+    const grace = config ? BigInt(config.grace_ns) : 0n;
+    const now = nowNs();
+    return questions.filter((question) => phaseOf(question, now, grace) === "open").length;
+  }, [questions, config]);
+
   return (
     <>
       <div className="app">
         <Sidebar />
         <main className="main">
           <TopBar />
-          <ErrorBoundary>
-            <App />
-          </ErrorBoundary>
+          <TabSlide>
+            <ErrorBoundary>
+              <App />
+            </ErrorBoundary>
+          </TabSlide>
         </main>
       </div>
-      <TabBar />
+      <TabBar openCount={openCount} />
     </>
   );
 }

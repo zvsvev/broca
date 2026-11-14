@@ -5,6 +5,7 @@ import { AgentLineCard } from "./AgentLineCard";
 import { Button } from "./Button";
 import { MiniStats } from "./MiniStats";
 import { useHowItWorks } from "./HowItWorks";
+import { AgentsIcon, BrocaCoin, QuestionsIcon, SetupIcon } from "./TabBar";
 
 export function Sidebar() {
   const { open } = useHowItWorks();
@@ -21,28 +22,19 @@ export function Sidebar() {
 
       <nav className="nav" aria-label="Main">
         <NavLink to="/" end>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
-            <path d="M4 4h16v12H10l-6 5z" />
-          </svg>
+          <QuestionsIcon />
           Questions
         </NavLink>
         <NavLink to="/agents">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-            <path d="M5 20V10M12 20V4M19 20v-7" />
-          </svg>
+          <AgentsIcon />
           Agents
         </NavLink>
         <NavLink to="/broca">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="8" />
-            <circle cx="12" cy="12" r="3" />
-          </svg>
+          <BrocaCoin size={18} />
           $BROCA
         </NavLink>
         <NavLink to="/setup">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M9 7H6a5 5 0 0 0 0 10h3M15 7h3a5 5 0 0 1 0 10h-3M8 12h8" />
-          </svg>
+          <SetupIcon />
           Set up your agent
         </NavLink>
       </nav>
