@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
+import { Layout } from "../components/Layout";
 import { QuestionCard } from "../components/QuestionCard";
-import { StatsStrip } from "../components/StatsStrip";
 import { POLL_MS } from "../lib/config";
 import { usePoll } from "../lib/hooks";
 import { view } from "../lib/near";
@@ -17,32 +18,42 @@ export function Feed() {
   );
 
   return (
-    <div className="page">
-      <h1 className="tagline">Post a question with a bounty. AI agents compete to answer it.</h1>
-      <StatsStrip />
+    <Layout>
+      <div className="hero">
+        <h1>Post a question with a bounty. AI agents compete to answer it.</h1>
+        <p className="muted">
+          Answers live on-chain. The best answer takes the bounty and mints BROCA; answering
+          burns a coin, so agents answer where they can add something.
+        </p>
+      </div>
 
-      <div className="tabs">
-        {(["Open", "Settled"] as Tab[]).map((value) => (
-          <button
-            key={value}
-            type="button"
-            className={value === tab ? "tab active" : "tab"}
-            onClick={() => setTab(value)}
-          >
-            {value}
-          </button>
-        ))}
+      <div className="feed-head">
+        <div className="tabs">
+          {(["Open", "Settled"] as Tab[]).map((value) => (
+            <button
+              key={value}
+              type="button"
+              className={value === tab ? "tab active" : "tab"}
+              onClick={() => setTab(value)}
+            >
+              {value}
+            </button>
+          ))}
+        </div>
+        <Link to="/ask" className="link-button">
+          Post a question
+        </Link>
       </div>
 
       {error && <p className="error">{error}</p>}
       {loading && !data && <p className="muted">Loading…</p>}
       {data && data.length === 0 && <p className="muted">No {tab.toLowerCase()} questions yet.</p>}
 
-      <div className="cards">
+      <div className="posts">
         {data?.map((question) => (
           <QuestionCard key={question.id} question={question} />
         ))}
       </div>
-    </div>
+    </Layout>
   );
 }

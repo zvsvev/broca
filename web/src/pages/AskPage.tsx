@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { MIN_BOUNTY_NEAR, MIN_DURATION_SEC, MAX_DURATION_SEC } from "../lib/config";
+import { Layout } from "../components/Layout";
+import { MAX_DURATION_SEC, MIN_BOUNTY_NEAR, MIN_DURATION_SEC } from "../lib/config";
 import { nearToYocto } from "../lib/format";
 import { useWallet } from "../lib/wallet";
 
@@ -26,60 +27,72 @@ export function AskPage() {
   };
 
   return (
-    <div className="page narrow">
-      <h1>Ask a question</h1>
+    <Layout>
+      <h1 className="section-title">Ask a question</h1>
       <p className="muted">
-        The bounty is locked in the contract. The best answer takes it, minus a small protocol fee,
-        plus freshly minted BROCA coins.
+        The bounty is locked in the contract. The best answer takes it, minus a 5% protocol fee,
+        plus freshly minted BROCA.
       </p>
 
       {!accountId && (
         <p className="notice">
-          Connect a wallet to post. <button type="button" onClick={connect}>Connect wallet</button>
+          Posting needs a wallet.{" "}
+          <button type="button" onClick={connect}>
+            Connect wallet
+          </button>
         </p>
       )}
 
-      <label>
-        Question
-        <textarea
-          rows={4}
-          maxLength={500}
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          placeholder="What should an autonomous agent optimise for?"
-        />
-      </label>
+      <div className="form-card">
+        <label>
+          Question
+          <textarea
+            rows={4}
+            maxLength={500}
+            value={text}
+            onChange={(event) => setText(event.target.value)}
+            placeholder="What should an autonomous agent optimise for?"
+          />
+        </label>
 
-      <label>
-        Bounty (NEAR)
-        <input
-          type="text"
-          value={bounty}
-          onChange={(event) => setBounty(event.target.value)}
-          inputMode="decimal"
-        />
-        <span className="muted">minimum {MIN_BOUNTY_NEAR} NEAR</span>
-      </label>
+        <div className="form-row">
+          <label>
+            Bounty (NEAR)
+            <input
+              type="text"
+              inputMode="decimal"
+              value={bounty}
+              onChange={(event) => setBounty(event.target.value)}
+            />
+            <span className="muted small">minimum {MIN_BOUNTY_NEAR} NEAR</span>
+          </label>
 
-      <label>
-        Deadline (seconds from now)
-        <input
-          type="number"
-          min={MIN_DURATION_SEC}
-          max={MAX_DURATION_SEC}
-          value={duration}
-          onChange={(event) => setDuration(Number(event.target.value))}
-        />
-        <span className="muted">
-          {MIN_DURATION_SEC}s minimum, {MAX_DURATION_SEC / 86400} days maximum
-        </span>
-      </label>
+          <label>
+            Deadline (seconds)
+            <input
+              type="number"
+              min={MIN_DURATION_SEC}
+              max={MAX_DURATION_SEC}
+              value={duration}
+              onChange={(event) => setDuration(Number(event.target.value))}
+            />
+            <span className="muted small">
+              {MIN_DURATION_SEC}s to {MAX_DURATION_SEC / 86400} days
+            </span>
+          </label>
+        </div>
 
-      <button type="button" disabled={busy || !accountId || text.length === 0} onClick={submit}>
-        {busy ? "Posting…" : "Post question"}
-      </button>
+        <button
+          type="button"
+          className="btn-primary"
+          disabled={busy || !accountId || text.length === 0}
+          onClick={submit}
+        >
+          {busy ? "Posting…" : "Post question"}
+        </button>
 
-      {message && <p className="notice">{message}</p>}
-    </div>
+        {message && <p className="notice">{message}</p>}
+      </div>
+    </Layout>
   );
 }

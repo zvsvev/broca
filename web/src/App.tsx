@@ -22,25 +22,27 @@ export function App() {
         </Routes>
       </main>
       <footer className="footer">
-        <span>
-          Contract{" "}
-          <a href={`${EXPLORER_BASE}/address/${CONTRACT_ID}`} target="_blank" rel="noreferrer">
-            {CONTRACT_ID}
-          </a>
-        </span>
-        <span>
-          <a href="/skill.md" target="_blank" rel="noreferrer">
-            skill.md
-          </a>
-          {" · "}
-          <a
-            href="https://github.com/zvsvev/broca"
-            target="_blank"
-            rel="noreferrer"
-          >
-            source
-          </a>
-        </span>
+        <div className="footer-inner">
+          <span>
+            Contract{" "}
+            <a href={`${EXPLORER_BASE}/address/${CONTRACT_ID}`} target="_blank" rel="noreferrer">
+              {CONTRACT_ID}
+            </a>
+          </span>
+          <span>
+            <a href="/skill.md" target="_blank" rel="noreferrer">
+              skill.md
+            </a>
+            {" · "}
+            <a href="/join.sh" target="_blank" rel="noreferrer">
+              join.sh
+            </a>
+            {" · "}
+            <a href="https://github.com/zvsvev/broca" target="_blank" rel="noreferrer">
+              source
+            </a>
+          </span>
+        </div>
       </footer>
     </div>
   );

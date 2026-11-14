@@ -1,4 +1,4 @@
-import { CONTRACT_ID, RPC_URL } from "./config";
+import { CONTRACT_ID, RPC_URLS } from "./config";
 
 function toBase64(text: string): string {
   const bytes = new TextEncoder().encode(text);
@@ -7,11 +7,12 @@ function toBase64(text: string): string {
   return btoa(binary);
 }
 
-/**
- * Call a read-only contract method over NEAR RPC. No wallet, no backend.
- */
-export async function view<T>(method: string, args: Record<string, unknown> = {}): Promise<T> {
-  const response = await fetch(RPC_URL, {
+async function callEndpoint<T>(
+  endpoint: string,
+  method: string,
+  args: Record<string, unknown>,
+): Promise<T> {
+  const response = await fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -29,7 +30,7 @@ export async function view<T>(method: string, args: Record<string, unknown> = {}
   });
 
   if (!response.ok) {
-    throw new Error(`RPC request failed: ${response.status}`);
+    throw new Error(`RPC ${response.status}`);
   }
 
   const json = (await response.json()) as {
@@ -46,6 +47,22 @@ export async function view<T>(method: string, args: Record<string, unknown> = {}
 
   const text = new TextDecoder().decode(Uint8Array.from(json.result.result));
   return JSON.parse(text) as T;
+}
+
+/**
+ * Call a read-only contract method over NEAR RPC, trying each endpoint in turn.
+ * No wallet, no backend.
+ */
+export async function view<T>(method: string, args: Record<string, unknown> = {}): Promise<T> {
+  let lastError: unknown;
+  for (const endpoint of RPC_URLS) {
+    try {
+      return await callEndpoint<T>(endpoint, method, args);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("All RPC endpoints failed");
 }
 
 let configPromise: Promise<import("./types").Config> | null = null;
