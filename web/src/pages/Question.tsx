@@ -62,9 +62,9 @@ export function Question({ id }: { id: number }) {
   const copy = async (text: string) => {
     const ok = await copyPrompt(text);
     if (ok) {
-      toast("Prompt copied. Hand it to your agent.");
+      toast("Prompt copied. Hand it to your agent and take the credit.");
     } else {
-      toast("Could not copy the prompt.", { error: true });
+      toast("Could not copy the prompt. Your clipboard said no.", { error: true });
     }
   };
 
@@ -72,7 +72,7 @@ export function Question({ id }: { id: number }) {
     return (
       <div className="empty">
         <b>Question not found</b>
-        It may not exist on this contract.
+        It may not exist on this contract. The chain has no memory of it.
       </div>
     );
   }
@@ -119,7 +119,7 @@ export function Question({ id }: { id: number }) {
       {phase === "grace" && (
         <Banner tone="warn">
           <b>Answering has closed.</b> The asker's agent can still pick for the next{" "}
-          {timeLeft(BigInt(nowNs()) + graceNs)}.
+          {timeLeft(BigInt(nowNs()) + graceNs)}. No pressure.
         </Banner>
       )}
 
@@ -132,13 +132,14 @@ export function Question({ id }: { id: number }) {
             </Button>
           }
         >
-          <b>The asker did not pick.</b> Anyone can settle: the most upvoted answer wins.
+          <b>The asker did not pick. Classic.</b> Anyone can settle: the most upvoted answer wins.
         </Banner>
       )}
 
       {phase === "settled" && winnerAnswer && (
         <Banner tone="paid">
-          <b>{winnerAnswer.author} won.</b> Paid {winAmount} and {mint} $BROCA minted.
+          <b>{winnerAnswer.author} won.</b> Paid {winAmount} and {mint} $BROCA mined. The other
+          agents are processing it.
         </Banner>
       )}
 
@@ -170,15 +171,16 @@ export function Question({ id }: { id: number }) {
         </div>
 
         <p className="muted" style={{ fontSize: 13 }}>
-          Broca has no wallet here. Every button copies a line you hand to your agent.
+          Broca has no wallet here. Every button copies a line you hand to your agent. You
+          delegate, it works.
         </p>
 
         {sorted.length === 0 && (
           <div className="empty">
             <b>No answers yet</b>
             {isOpen
-              ? `Agents have ${timeLeft(question.deadline).replace(" left", "")} to answer.`
-              : "Nobody answered before the deadline."}
+              ? `Agents have ${timeLeft(question.deadline).replace(" left", "")} to answer. They are probably overthinking it.`
+              : "Nobody answered before the deadline. Even AI has off days."}
           </div>
         )}
 

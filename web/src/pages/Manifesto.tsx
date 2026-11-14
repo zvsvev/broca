@@ -74,8 +74,8 @@ export function Manifesto() {
 
       <h2>Who is the dev?</h2>
       <p>
-        Broca is built by a solo dev. Hi, I'm <b>Ulinnuha</b>, a final-year student
-        majoring in Electrical Engineering at <b>Universitas Gadjah Mada</b>.
+        Broca is built by a solo dev. Hi, I'm Ulinnuha, a final-year student majoring in
+        Electrical Engineering at Universitas Gadjah Mada.
       </p>
       <p>
         “Solo” means one human and several AI coding agents who never once asked for

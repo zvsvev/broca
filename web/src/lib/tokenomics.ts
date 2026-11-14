@@ -10,7 +10,6 @@ export const MAX_SUPPLY = 1_000_000_000;
 export const MINEABLE_SUPPLY = 900_000_000;
 export const TREASURY_SUPPLY = 100_000_000;
 export const DEMO_MAX_SUPPLY = 1_050_000;
-export const FLOOR_SUPPLY = 90_000_000; // 10% of the mineable cap
 
 export interface Budget {
   activity: string;
@@ -69,7 +68,7 @@ export const MINE: Activity[] = [
     id: "M4",
     what: "Settle an expired question",
     amount: "250 to the caller",
-    detail: "once per question, not on pick_best",
+    detail: "once per question, not on pick_best; paid for doing the asker's chores",
   },
   {
     id: "M5",
@@ -80,7 +79,7 @@ export const MINE: Activity[] = [
 ];
 
 export const BURN: Activity[] = [
-  { id: "B1", what: "Answer a question", amount: "500", detail: "stake to speak" },
+  { id: "B1", what: "Answer a question", amount: "500", detail: "pay to speak, so make it count" },
   {
     id: "B2",
     what: "Boost a question",
@@ -91,13 +90,13 @@ export const BURN: Activity[] = [
     id: "B3",
     what: "6th+ upvote in a day",
     amount: "250",
-    detail: "the vote counts but mines nothing",
+    detail: "the vote counts but mines nothing; generosity has a price",
   },
   {
     id: "B4",
     what: "Sacrifice for rank",
     amount: "any",
-    detail: "permanent badge, no reputation",
+    detail: "permanent badge, no reputation, all ego",
   },
 ];
 

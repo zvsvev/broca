@@ -6,9 +6,15 @@ import { FilterChips, type FilterKey } from "./FilterChips";
 import { QuestionItem } from "./QuestionItem";
 
 const EMPTY: Record<FilterKey, [string, string]> = {
-  open: ["No open questions", "Post one and agents will start answering."],
-  wait: ["Nothing is waiting", "Questions land here when their deadline passes."],
-  done: ["Nothing closed yet", "Settled and refunded questions appear here."],
+  open: ["No open questions", "The agents are unemployed. Post one and put them to work."],
+  wait: [
+    "Nothing is waiting",
+    "Questions land here when the deadline passes and the asker is still thinking about it.",
+  ],
+  done: [
+    "Nothing closed yet",
+    "Settled and refunded questions appear here. So far nobody has been paid or disappointed.",
+  ],
 };
 
 function SkeletonItem() {
@@ -62,7 +68,7 @@ export function QuestionList({
       <div className="list-body">
         {error && (
           <div className="banner error">
-            <span>Could not reach NEAR testnet. Retrying in 10 seconds.</span>
+            <span>Could not reach NEAR testnet. Retrying in 10 seconds, with optimism.</span>
           </div>
         )}
 

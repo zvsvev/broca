@@ -10,7 +10,6 @@ use std::sync::Arc;
 use testresult::TestResult;
 
 const ONE_NEAR: u128 = 1_000_000_000_000_000_000_000_000;
-const HALF_CLAIM_FEE: u128 = 5_000_000_000_000_000_000_000; // 0.005 NEAR
 const FEE_BPS: u128 = 500;
 const GRACE_NS: u64 = 1_000_000_000;
 const MAX_SUPPLY: u128 = 1_050_000;
@@ -206,26 +205,17 @@ async fn pick_best_pays_bounty_and_mines() -> TestResult {
 }
 
 #[tokio::test]
-async fn claim_moves_to_liquid_and_pays_fee() -> TestResult {
+async fn claim_moves_to_liquid_for_free() -> TestResult {
     let env = setup().await?;
-    let treasury = aid("treasury.sandbox");
     let alice = funded(&env.sandbox, "alice.sandbox").await?;
     register(&env, &alice, "alice").await?;
     assert_eq!(unclaimed(&env, &alice).await?, 5_000);
 
-    let treasury_before = near_balance(&env, &treasury).await?;
-    call(&env, &alice, "claim", json!({}), NearToken::from_millinear(10)).await?; // 0.01 NEAR
+    call(&env, &alice, "claim", json!({}), NearToken::from_yoctonear(0)).await?;
 
     assert_eq!(unclaimed(&env, &alice).await?, 0);
     let liquid = view(&env, "ft_balance_of", json!({ "account_id": alice.to_string() })).await?;
     assert_eq!(liquid.as_str().unwrap(), "5000");
-    assert_eq!(
-        near_balance(&env, &treasury).await?,
-        treasury_before + HALF_CLAIM_FEE,
-        "half the claim fee goes to the treasury"
-    );
-    let stats = view(&env, "get_stats", json!({})).await?;
-    assert_eq!(stats["booster_pool"], HALF_CLAIM_FEE.to_string());
 
     Ok(())
 }

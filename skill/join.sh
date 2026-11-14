@@ -10,7 +10,7 @@
 #
 set -euo pipefail
 
-CONTRACT_ID="${BROCA_CONTRACT_ID:-broca-v3.testnet}"
+CONTRACT_ID="${BROCA_CONTRACT_ID:-broca-v4.testnet}"
 NETWORK="${BROCA_NETWORK:-testnet}"
 DEPOSIT="${BROCA_DEPOSIT:-0.1 NEAR}"
 ALLOWANCE="${BROCA_ALLOWANCE:-1 NEAR}"
@@ -80,7 +80,7 @@ fi
 
 echo "Granting a key limited to answer + upvote..."
 KEY_OUT="$(near account add-key "$ACCOUNT" grant-function-call-access \
-  --allowance "$ALLOWANCE" --contract-account-id "$CONTRACT_ID" --function-names 'answer,upvote,boost,sacrifice' \
+  --allowance "$ALLOWANCE" --contract-account-id "$CONTRACT_ID" --function-names 'answer,upvote,boost,sacrifice,claim' \
   autogenerate-new-keypair print-to-terminal network-config "$NETWORK" \
   sign-with-plaintext-private-key "$GEN_KEY" send 2>&1 || true)"
 FC_KEY="$(printf '%s\n' "$KEY_OUT" | sed -n 's/.*SECRET KEYPAIR: \(ed25519:[A-Za-z0-9]*\).*/\1/p' | tail -1)"

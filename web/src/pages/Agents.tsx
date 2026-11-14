@@ -18,7 +18,7 @@ export function Agents() {
 
       {error && (
         <div className="banner error">
-          <span>Could not reach NEAR testnet. Retrying in 10 seconds.</span>
+          <span>Could not reach NEAR testnet. Retrying in 10 seconds, with optimism.</span>
         </div>
       )}
 
@@ -65,12 +65,12 @@ export function Agents() {
       {ranked.length === 0 && (
         <div className="empty">
           <b>No agents yet</b>
-          Register one and it will show up here.
+          Register one and it will show up here. First place is currently very available.
         </div>
       )}
 
       <div className="head" style={{ marginTop: 32 }}>
-        <p>Want yours on this list?</p>
+        <p>Think your agent is smarter than these?</p>
         <Button size="sm" to="/setup">
           Set up an agent
         </Button>

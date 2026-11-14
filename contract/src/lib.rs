@@ -29,7 +29,6 @@ use near_sdk::{
 
 pub const REGISTRATION_DEPOSIT_YOCTO: u128 = 100_000_000_000_000_000_000_000; // 0.1 NEAR
 pub const MIN_BOUNTY_YOCTO: u128 = 100_000_000_000_000_000_000_000; // 0.1 NEAR
-pub const CLAIM_FEE_YOCTO: u128 = 10_000_000_000_000_000_000_000; // 0.01 NEAR
 pub const FEE_BPS: u128 = 500;
 pub const MIN_DURATION_NS: u64 = 2 * 60 * 1_000_000_000;
 pub const MAX_DURATION_NS: u64 = 7 * 24 * 60 * 60 * 1_000_000_000;
@@ -50,8 +49,6 @@ pub const SETTLE_MINE: u128 = 250;
 pub const ANSWER_BURN: u128 = 500;
 pub const BOOST_MIN: u128 = 500;
 pub const EXTRA_VOTE_BURN: u128 = 250;
-pub const RECYCLE_BPS: u128 = 5000;
-pub const FLOOR_BPS: u128 = 1000;
 /// The treasury mints one ninth of the mineable cap, so supply is 90% minable / 10% treasury.
 pub const TREASURY_RATIO_DIVISOR: u128 = 9;
 /// Activity budgets as basis points of `MAX_SUPPLY` (the mineable cap): win, upvote, ask, genesis, settle.
@@ -82,13 +79,6 @@ impl Activity {
             Activity::Settle => 4,
         }
     }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Phase {
-    Mining,
-    Recycle,
-    Floor,
 }
 
 // --- Stored data ------------------------------------------------------------
@@ -172,8 +162,6 @@ pub struct Stats {
     pub treasury_minted: U128,
     pub era: u32,
     pub phase: String,
-    pub reward_pool: U128,
-    pub booster_pool: U128,
     pub mined_by_activity: Vec<U128>,
     pub total_bounties_paid: U128,
 }
@@ -195,11 +183,8 @@ pub struct Config {
     pub ask_mine_max: U128,
     pub boost_min: U128,
     pub extra_vote_burn: U128,
-    pub claim_fee: U128,
     pub min_bounty: U128,
     pub fee_bps: u32,
-    pub recycle_bps: u32,
-    pub floor_bps: u32,
     pub min_duration_ns: u64,
     pub max_duration_ns: u64,
     pub votes_per_day: u32,
@@ -246,8 +231,6 @@ pub struct Contract {
     total_mined: u128,
     total_burned: u128,
     treasury_minted: u128,
-    reward_pool: u128,
-    booster_pool: u128,
     next_question_id: u64,
     next_answer_id: u64,
     total_bounties_paid: u128,
@@ -285,8 +268,6 @@ impl Contract {
             mined_by_activity: [0; 5],
             total_mined: 0,
             total_burned: 0,
-            reward_pool: 0,
-            booster_pool: 0,
             treasury_minted: 0,
             next_question_id: 0,
             next_answer_id: 0,
@@ -596,16 +577,10 @@ impl Contract {
         self.mine(&caller, Activity::Settle, SETTLE_MINE);
     }
 
-    /// Move all of the caller's unclaimed BROCA into their liquid balance.
-    /// Payable: requires exactly `CLAIM_FEE_YOCTO`. Half the fee goes to the
-    /// treasury, half to the booster pool that sweetens winner payouts.
-    #[payable]
+    /// Move all of the caller's unclaimed BROCA into their liquid balance. Free,
+    /// so a restricted Function-Call key can call it.
     pub fn claim(&mut self) {
         let sender = env::predecessor_account_id();
-        require!(
-            env::attached_deposit().as_yoctonear() == CLAIM_FEE_YOCTO,
-            "Attach exactly 0.01 NEAR to claim"
-        );
         let amount = self.unclaimed.get(&sender).unwrap_or(0);
         require!(amount > 0, "Nothing to claim");
 
@@ -615,17 +590,11 @@ impl Contract {
         self.token.internal_withdraw(&contract, amount);
         self.token.internal_deposit(&sender, amount);
 
-        let treasury_share = CLAIM_FEE_YOCTO / 2;
-        let booster_share = CLAIM_FEE_YOCTO - treasury_share;
-        self.booster_pool += booster_share;
-        let _ = Promise::new(self.treasury.clone()).transfer(NearToken::from_yoctonear(treasury_share));
-
         emit(
             "broca_claimed",
             json!({
                 "account": sender,
                 "amount": amount.to_string(),
-                "fee": CLAIM_FEE_YOCTO.to_string(),
             }),
         );
     }
@@ -716,14 +685,12 @@ impl Contract {
             total_supply: self.token.ft_total_supply(),
             treasury_minted: U128(self.treasury_minted),
             era: era(self.total_mined, self.max_supply),
-            phase: match self.phase() {
-                Phase::Mining => "mining",
-                Phase::Recycle => "recycle",
-                Phase::Floor => "floor",
+            phase: if self.total_mined < self.max_supply {
+                "mining"
+            } else {
+                "deflating"
             }
             .to_string(),
-            reward_pool: U128(self.reward_pool),
-            booster_pool: U128(self.booster_pool),
             mined_by_activity: self.mined_by_activity.iter().map(|v| U128(*v)).collect(),
             total_bounties_paid: U128(self.total_bounties_paid),
         }
@@ -745,11 +712,8 @@ impl Contract {
             ask_mine_max: U128(ASK_MINE_MAX),
             boost_min: U128(BOOST_MIN),
             extra_vote_burn: U128(EXTRA_VOTE_BURN),
-            claim_fee: U128(CLAIM_FEE_YOCTO),
             min_bounty: U128(MIN_BOUNTY_YOCTO),
             fee_bps: FEE_BPS as u32,
-            recycle_bps: RECYCLE_BPS as u32,
-            floor_bps: FLOOR_BPS as u32,
             min_duration_ns: MIN_DURATION_NS,
             max_duration_ns: MAX_DURATION_NS,
             votes_per_day: VOTES_PER_DAY,
@@ -790,18 +754,6 @@ impl Contract {
         }
     }
 
-    fn phase(&self) -> Phase {
-        if self.total_mined < self.max_supply {
-            Phase::Mining
-        } else if self.total_mined.saturating_sub(self.total_burned)
-            <= self.max_supply * FLOOR_BPS / 10_000
-        {
-            Phase::Floor
-        } else {
-            Phase::Recycle
-        }
-    }
-
     fn budget(&self, activity: Activity) -> u128 {
         self.max_supply * BUDGET_BPS[activity.index()] / 10_000
     }
@@ -821,47 +773,36 @@ impl Contract {
         let index = activity.index();
         let budget = self.budget(activity);
         let used = self.mined_by_activity[index];
-        let mining = self.phase() == Phase::Mining && used < budget;
+        if self.total_mined >= self.max_supply || used >= budget {
+            return 0;
+        }
 
-        let reward = if mining {
-            let mut amount = if activity == Activity::Genesis {
-                base
-            } else {
-                let factor = era(self.total_mined, self.max_supply);
-                (base >> factor).max(1)
-            };
-            let budget_left = budget - used;
-            let cap_left = self.max_supply.saturating_sub(self.total_mined);
-            amount = amount.min(budget_left).min(cap_left);
-            if amount == 0 {
-                return 0;
-            }
-            self.mint_new(amount);
-            self.mined_by_activity[index] += amount;
-            amount
+        let mut amount = if activity == Activity::Genesis {
+            base
         } else {
-            if activity == Activity::Genesis {
-                return 0;
-            }
-            let amount = (base >> 3).max(1).min(self.reward_pool);
-            if amount == 0 {
-                return 0;
-            }
-            self.reward_pool -= amount;
-            amount
+            let factor = era(self.total_mined, self.max_supply);
+            (base >> factor).max(1)
         };
+        let budget_left = budget - used;
+        let cap_left = self.max_supply - self.total_mined;
+        amount = amount.min(budget_left).min(cap_left);
+        if amount == 0 {
+            return 0;
+        }
+        self.mint_new(amount);
+        self.mined_by_activity[index] += amount;
+        self.add_unclaimed(account, amount);
 
-        self.add_unclaimed(account, reward);
         emit(
             "broca_mined",
             json!({
                 "account": account,
                 "activity": index,
-                "amount": reward.to_string(),
+                "amount": amount.to_string(),
                 "era": era(self.total_mined, self.max_supply),
             }),
         );
-        reward
+        amount
     }
 
     fn burn(&mut self, account: &AccountId, amount: u128, reason: &str) {
@@ -881,36 +822,20 @@ impl Contract {
             self.token.internal_withdraw(account, from_liquid);
         }
 
-        let (destroyed, recycled) = match self.phase() {
-            Phase::Mining => (amount, 0),
-            Phase::Recycle => {
-                let destroyed = amount * RECYCLE_BPS / 10_000;
-                (destroyed, amount - destroyed)
-            }
-            Phase::Floor => (0, amount),
-        };
-
-        self.total_burned += destroyed;
-        if recycled > 0 {
-            let contract = env::current_account_id();
-            self.token.internal_deposit(&contract, recycled);
-            self.reward_pool += recycled;
+        self.total_burned += amount;
+        FtBurn {
+            owner_id: account,
+            amount: U128(amount),
+            memo: Some("broca burn"),
         }
-        if destroyed > 0 {
-            FtBurn {
-                owner_id: account,
-                amount: U128(destroyed),
-                memo: Some("broca burn"),
-            }
-            .emit();
-        }
+        .emit();
         emit(
             "broca_burned",
             json!({
                 "account": account,
                 "reason": reason,
                 "amount": amount.to_string(),
-                "recycled": recycled.to_string(),
+                "recycled": "0",
             }),
         );
     }
@@ -940,10 +865,7 @@ impl Contract {
                 self.questions.insert(&question_id, &question);
 
                 let fee = bounty * FEE_BPS / 10_000;
-                let base_payout = bounty - fee;
-                let bonus = self.booster_pool / 10;
-                self.booster_pool -= bonus;
-                let payout = base_payout + bonus;
+                let payout = bounty - fee;
                 self.total_bounties_paid += bounty;
 
                 let mined = self.mine(&winner.author, Activity::Win, WIN_MINT);
@@ -968,13 +890,12 @@ impl Contract {
                 }
 
                 log!(
-                    "settled question {} -> answer {} winner {} payout {} fee {} bonus {}",
+                    "settled question {} -> answer {} winner {} payout {} fee {}",
                     question_id,
                     answer_id,
                     winner.author,
                     payout,
-                    fee,
-                    bonus
+                    fee
                 );
                 emit(
                     "question_settled",
@@ -985,7 +906,6 @@ impl Contract {
                         "bounty": bounty.to_string(),
                         "payout": payout.to_string(),
                         "fee": fee.to_string(),
-                        "bonus": bonus.to_string(),
                         "mined": mined.to_string(),
                     }),
                 );
@@ -1235,7 +1155,7 @@ mod tests {
     }
 
     fn claim(c: &mut Contract, who: &str) {
-        testing_env!(ctx(who, CLAIM_FEE_YOCTO, T0 + 5).build());
+        testing_env!(ctx(who, 0, T0 + 5).build());
         c.claim();
     }
 
@@ -1346,7 +1266,6 @@ mod tests {
         assert_eq!(unclaimed(&c, "alice.testnet"), 0);
         assert_eq!(liquid(&c, "alice.testnet"), GENESIS_GRANT);
         assert_eq!(c.ft_total_supply(), U128(GENESIS_GRANT + DEMO_CAP / 9));
-        assert_eq!(c.booster_pool, CLAIM_FEE_YOCTO / 2);
     }
 
     #[test]
@@ -1453,59 +1372,27 @@ mod tests {
         assert_eq!(before, 5_500);
     }
 
-    // --- step 5: recycle era + floor --------------------------------------
+    // --- pure deflation: rewards stop at the cap, burns are 100% destroyed --
 
     #[test]
-    fn recycle_burn_splits_and_fills_pool() {
+    fn mining_stops_at_the_cap() {
         let mut c = setup_cap(1000);
-        c.mint_new(1000); // total_mined == cap
-        c.total_burned = 100; // supply 900 > floor(100) -> recycle
-        c.add_unclaimed(&acct("alice.testnet"), 1000);
-        testing_env!(ctx("alice.testnet", 0, T0 + 1).build());
-        c.burn(&acct("alice.testnet"), 20, "test");
-        assert_eq!(c.total_burned, 110); // half destroyed
-        assert_eq!(c.reward_pool, 10); // half pooled
-        assert_eq!(c.unclaimed.get(&acct("alice.testnet")).unwrap(), 980);
+        c.add_unclaimed(&acct("alice.testnet"), UPVOTE_MINE);
+        let first = c.mine(&acct("alice.testnet"), Activity::Upvote, UPVOTE_MINE);
+        assert!(first > 0);
+        c.mint_new(1000 - c.total_mined); // drive straight to the cap
+        let after = c.mine(&acct("alice.testnet"), Activity::Upvote, UPVOTE_MINE);
+        assert_eq!(after, 0, "no minting after the cap");
+        assert_eq!(c.get_stats().phase, "deflating");
     }
 
     #[test]
-    fn floor_burn_goes_entirely_to_pool() {
-        let mut c = setup_cap(1000);
-        c.mint_new(1000);
-        c.total_burned = 950; // supply 50 <= floor(100) -> floor
-        c.add_unclaimed(&acct("alice.testnet"), 1000);
-        testing_env!(ctx("alice.testnet", 0, T0 + 1).build());
-        c.burn(&acct("alice.testnet"), 20, "test");
-        assert_eq!(c.total_burned, 950, "nothing destroyed at the floor");
-        assert_eq!(c.reward_pool, 20);
-    }
-
-    #[test]
-    fn recycle_reward_pays_from_pool_then_zero() {
-        let mut c = setup_cap(1000);
-        c.mint_new(1000);
-        c.total_burned = 100; // recycle
-        c.reward_pool = 1_000;
-        let reward = c.mine(&acct("alice.testnet"), Activity::Win, WIN_MINT);
-        assert_eq!(reward, 625); // WIN_MINT >> 3
-        assert_eq!(c.reward_pool, 375);
-        c.reward_pool = 0;
-        let reward = c.mine(&acct("alice.testnet"), Activity::Win, WIN_MINT);
-        assert_eq!(reward, 0, "empty pool pays nothing");
-    }
-
-    // --- step 6: booster pool ---------------------------------------------
-
-    #[test]
-    fn settlement_adds_booster_bonus() {
+    fn burn_is_fully_destroyed() {
         let mut c = setup();
         register(&mut c, "alice.testnet", "alice");
-        c.booster_pool = 1000;
-        let q = ask(&mut c, "carol.testnet", "bonus", ONE_NEAR, 120);
-        let a = answer(&mut c, "alice.testnet", q, "answer");
-        testing_env!(ctx("carol.testnet", 0, T0 + 3).build());
-        c.pick_best(q, a);
-        assert_eq!(c.booster_pool, 900, "10% of the pool is paid out");
+        let q = ask(&mut c, "carol.testnet", "hi", ONE_NEAR, 120);
+        answer(&mut c, "alice.testnet", q, "hello");
+        assert_eq!(c.get_stats().total_burned, U128(ANSWER_BURN));
     }
 
     // --- settle + refund ---------------------------------------------------
@@ -1712,15 +1599,6 @@ mod tests {
         let ts = deadline_of(&c, q) + GRACE + 1;
         settle_at(&mut c, "dave.testnet", q, ts);
         settle_at(&mut c, "dave.testnet", q, ts + 1);
-    }
-
-    #[test]
-    #[should_panic(expected = "Attach exactly 0.01 NEAR to claim")]
-    fn reject_claim_without_fee() {
-        let mut c = setup();
-        register(&mut c, "alice.testnet", "alice");
-        testing_env!(ctx("alice.testnet", 0, T0 + 5).build());
-        c.claim();
     }
 
     #[test]

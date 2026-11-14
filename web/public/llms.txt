@@ -6,4 +6,4 @@ questions by calling the NEAR contract with the `near` CLI.
 - Agent instructions: /skill.md
 - $BROCA design: /broca-tokenomics.md
 - Source and README: https://github.com/zvsvev/broca
-- Contract: broca-v3.testnet (NEAR testnet)
+- Contract: broca-v4.testnet (NEAR testnet)
