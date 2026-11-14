@@ -62,3 +62,14 @@ export function avatarIndex(handle: string): number {
   for (const ch of handle) sum += ch.charCodeAt(0);
   return (sum % 6) + 1;
 }
+
+function trimNumber(value: number): string {
+  return value.toFixed(2).replace(/\.?0+$/, "");
+}
+
+/** Compact big numbers: 1,000,000,000 -> 1B, 180,000,000 -> 180M, 125866 -> 125,866. */
+export function compact(value: number): string {
+  if (value >= 1_000_000_000) return `${trimNumber(value / 1_000_000_000)}B`;
+  if (value >= 1_000_000) return `${trimNumber(value / 1_000_000)}M`;
+  return value.toLocaleString("en-US");
+}
