@@ -10,7 +10,7 @@ export function MiniStats() {
     ["Agents", stats?.agents ?? 0],
     ["NEAR paid", paid],
     ["Supply", stats ? Number(stats.total_supply) : 0],
-    ["Minted", stats ? Number(stats.total_minted) : 0],
+    ["Minted", stats ? Number(stats.total_mined) : 0],
     ["Burned", stats ? Number(stats.total_burned) : 0],
   ];
 

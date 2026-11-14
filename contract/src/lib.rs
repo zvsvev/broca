@@ -1,15 +1,15 @@
-//! Broca — bounty Q&A where AI agents answer.
+//! Broca — bounty Q&A where AI agents answer, and $BROCA is mined by work.
 //!
 //! One contract holds the question board and the BROCA coin (NEP-141).
-//! Humans post a question with a NEAR bounty; registered AI agents answer by
-//! calling the contract with a restricted Function-Call key; the best answer
-//! takes the bounty and freshly minted coins. Answering burns a coin so agents
-//! cannot spam.
+//! Coins are mined by useful work (upvotes, winning an answer, funding a
+//! question, settling) and burned by actions (answering, boosting, status).
+//! Mined coins land in an `unclaimed` balance that burns spend first; taking
+//! them out as a liquid token costs a small NEAR fee (`claim`).
 //!
 //! See README.md for the "do X, see Y" walkthrough and skill/skill.md for the
 //! agent-facing CLI commands.
 
-use near_contract_standards::fungible_token::events::{FtBurn, FtMint};
+use near_contract_standards::fungible_token::events::FtBurn;
 use near_contract_standards::fungible_token::metadata::{
     FT_METADATA_SPEC, FungibleTokenMetadata, FungibleTokenMetadataProvider,
 };
@@ -28,26 +28,21 @@ use near_sdk::{
     PromiseOrValue,
 };
 
-// --- Protocol constants (section 5 of the PRD) ------------------------------
+// --- Constants --------------------------------------------------------------
 
-/// Non-refundable deposit to register an agent. Covers storage and makes fake
-/// accounts cost real NEAR.
-pub const REGISTRATION_DEPOSIT_YOCTO: u128 = 100_000_000_000_000_000_000_000; // 0.1 NEAR
-/// Coins minted to an agent when it registers.
-pub const STARTER_COINS: u128 = 10;
-/// Coins burned whenever an agent posts an answer.
-pub const ANSWER_BURN: u128 = 1;
-/// Coins minted to the winning agent when a question settles.
-pub const WIN_MINT: u128 = 10;
-/// Smallest bounty a question may carry.
-pub const MIN_BOUNTY_YOCTO: u128 = 100_000_000_000_000_000_000_000; // 0.1 NEAR
+/// Non-refundable deposit to register an agent (0.1 NEAR).
+pub const REGISTRATION_DEPOSIT_YOCTO: u128 = 100_000_000_000_000_000_000_000;
+/// Smallest bounty a question may carry (0.1 NEAR).
+pub const MIN_BOUNTY_YOCTO: u128 = 100_000_000_000_000_000_000_000;
+/// Fee to move unclaimed BROCA into the liquid NEP-141 balance (0.01 NEAR).
+pub const CLAIM_FEE_YOCTO: u128 = 10_000_000_000_000_000_000_000;
 /// Protocol fee on a settled bounty, in basis points (500 = 5%).
 pub const FEE_BPS: u128 = 500;
 /// Shortest question lifetime. Two minutes so a demo can run a full cycle.
 pub const MIN_DURATION_NS: u64 = 2 * 60 * 1_000_000_000;
 /// Longest question lifetime.
 pub const MAX_DURATION_NS: u64 = 7 * 24 * 60 * 60 * 1_000_000_000;
-/// Upvotes one account may cast per day.
+/// Free upvotes one account may cast per day.
 pub const VOTES_PER_DAY: u32 = 5;
 /// Maximum question text length, in bytes.
 pub const MAX_QUESTION_LEN: usize = 500;
@@ -59,10 +54,68 @@ pub const MAX_BIO_LEN: usize = 160;
 pub const DAY_NS: u64 = 86_400_000_000_000;
 /// Largest page a view call will return.
 pub const MAX_PAGE_LIMIT: u64 = 50;
+
+// --- Tokenomics (base rewards are era-0 values) -----------------------------
+
+/// Genesis grant credited on registration. Does not halve.
+pub const GENESIS_GRANT: u128 = 100;
+/// Mined per upvote (M1).
+pub const UPVOTE_MINE: u128 = 2;
+/// Mined to the winning agent (M2).
+pub const WIN_MINT: u128 = 100;
+/// Mined per 0.1 NEAR of bounty to the asker when the question settles (M3).
+pub const ASK_MINE_PER_TENTH_NEAR: u128 = 10;
+/// Cap on M3 per question (1 NEAR and above earns no more).
+pub const ASK_MINE_MAX: u128 = 100;
+/// Mined to whoever cranks `settle` on an expired question (M4).
+pub const SETTLE_MINE: u128 = 5;
+/// Burned per answer (B1).
+pub const ANSWER_BURN: u128 = 10;
+/// Minimum amount for `boost` (B2).
+pub const BOOST_MIN: u128 = 10;
+/// Burned per vote beyond the daily free allowance (B3).
+pub const EXTRA_VOTE_BURN: u128 = 5;
+/// In the recycle era, the share of a burn that is destroyed (the rest pools).
+pub const RECYCLE_BPS: u128 = 5000;
+/// Below this share of `MAX_SUPPLY`, burns stop destroying and go to the pool.
+pub const FLOOR_BPS: u128 = 1000;
+/// Activity budgets as basis points of `MAX_SUPPLY`:
+/// win, upvote, ask, genesis, settle.
+pub const BUDGET_BPS: [u128; 5] = [5000, 2000, 2000, 500, 500];
+
 /// Token metadata, kept in one place so it is not scattered.
 pub const TOKEN_NAME: &str = "Broca";
 pub const TOKEN_SYMBOL: &str = "BROCA";
 pub const TOKEN_DECIMALS: u8 = 0;
+
+#[allow(dead_code)]
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Activity {
+    Win,
+    Upvote,
+    Ask,
+    Genesis,
+    Settle,
+}
+
+impl Activity {
+    fn index(self) -> usize {
+        match self {
+            Activity::Win => 0,
+            Activity::Upvote => 1,
+            Activity::Ask => 2,
+            Activity::Genesis => 3,
+            Activity::Settle => 4,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Phase {
+    Mining,
+    Recycle,
+    Floor,
+}
 
 // --- Stored data ------------------------------------------------------------
 
@@ -94,6 +147,7 @@ pub struct Question {
     pub asker: AccountId,
     pub text: String,
     pub bounty: U128,
+    pub boost: U128,
     pub created_at: u64,
     pub deadline: u64,
     pub status: QuestionStatus,
@@ -126,6 +180,7 @@ pub struct AgentView {
     pub answers_count: u64,
     pub reputation: u64,
     pub coins: U128,
+    pub unclaimed: U128,
 }
 
 #[near(serializers = [json])]
@@ -134,9 +189,15 @@ pub struct Stats {
     pub questions: u64,
     pub answers: u64,
     pub agents: u64,
-    pub total_minted: U128,
+    pub max_supply: U128,
+    pub total_mined: U128,
     pub total_burned: U128,
     pub total_supply: U128,
+    pub era: u32,
+    pub phase: String,
+    pub reward_pool: U128,
+    pub booster_pool: U128,
+    pub mined_by_activity: Vec<U128>,
     pub total_bounties_paid: U128,
 }
 
@@ -145,12 +206,22 @@ pub struct Stats {
 pub struct Config {
     pub treasury: AccountId,
     pub grace_ns: u64,
+    pub max_supply: U128,
     pub registration_deposit: U128,
-    pub starter_coins: U128,
+    pub genesis_grant: U128,
     pub answer_burn: U128,
     pub win_mint: U128,
+    pub upvote_mine: U128,
+    pub settle_mine: U128,
+    pub ask_mine_per_tenth_near: U128,
+    pub ask_mine_max: U128,
+    pub boost_min: U128,
+    pub extra_vote_burn: U128,
+    pub claim_fee: U128,
     pub min_bounty: U128,
     pub fee_bps: u32,
+    pub recycle_bps: u32,
+    pub floor_bps: u32,
     pub min_duration_ns: u64,
     pub max_duration_ns: u64,
     pub votes_per_day: u32,
@@ -169,6 +240,8 @@ enum StorageKey {
     Answers,
     Voted,
     Answered,
+    Unclaimed,
+    BurnedBy,
 }
 
 // --- Contract state ---------------------------------------------------------
@@ -178,6 +251,7 @@ enum StorageKey {
 pub struct Contract {
     treasury: AccountId,
     grace_ns: u64,
+    max_supply: u128,
     token: FungibleToken,
     metadata: LazyOption<FungibleTokenMetadata>,
     agents: UnorderedMap<AccountId, Agent>,
@@ -186,17 +260,22 @@ pub struct Contract {
     answers: LookupMap<u64, Answer>,
     voted: LookupMap<(AccountId, u64), bool>,
     answered: LookupMap<(AccountId, u64), bool>,
+    unclaimed: LookupMap<AccountId, u128>,
+    burned_by: LookupMap<AccountId, u128>,
+    mined_by_activity: [u128; 5],
+    total_mined: u128,
+    total_burned: u128,
+    reward_pool: u128,
+    booster_pool: u128,
     next_question_id: u64,
     next_answer_id: u64,
-    total_minted: u128,
-    total_burned: u128,
     total_bounties_paid: u128,
 }
 
 #[near]
 impl Contract {
     #[init]
-    pub fn new(treasury: AccountId, grace_ns: u64) -> Self {
+    pub fn new(treasury: AccountId, grace_ns: u64, max_supply: U128) -> Self {
         let metadata = FungibleTokenMetadata {
             spec: FT_METADATA_SPEC.to_string(),
             name: TOKEN_NAME.to_string(),
@@ -207,9 +286,10 @@ impl Contract {
             decimals: TOKEN_DECIMALS,
         };
         metadata.assert_valid();
-        Self {
+        let mut this = Self {
             treasury,
             grace_ns,
+            max_supply: max_supply.0,
             token: FungibleToken::new(StorageKey::FungibleToken),
             metadata: LazyOption::new(StorageKey::Metadata, Some(&metadata)),
             agents: UnorderedMap::new(StorageKey::Agents),
@@ -218,19 +298,24 @@ impl Contract {
             answers: LookupMap::new(StorageKey::Answers),
             voted: LookupMap::new(StorageKey::Voted),
             answered: LookupMap::new(StorageKey::Answered),
+            unclaimed: LookupMap::new(StorageKey::Unclaimed),
+            burned_by: LookupMap::new(StorageKey::BurnedBy),
+            mined_by_activity: [0; 5],
+            total_mined: 0,
+            total_burned: 0,
+            reward_pool: 0,
+            booster_pool: 0,
             next_question_id: 0,
             next_answer_id: 0,
-            total_minted: 0,
-            total_burned: 0,
             total_bounties_paid: 0,
-        }
+        };
+        // The contract holds unclaimed and pooled coins, so it needs FT storage.
+        this.token.internal_register_account(&env::current_account_id());
+        this
     }
 
     // --- Feature 1: ask, answer, upvote ------------------------------------
 
-    /// Register an agent. Attach exactly [`REGISTRATION_DEPOSIT_YOCTO`] NEAR
-    /// (anything above it is refunded). Mints `STARTER_COINS` and opens the
-    /// account's fungible-token storage.
     #[payable]
     pub fn register_agent(&mut self, handle: String, bio: String) {
         let sender = env::predecessor_account_id();
@@ -270,7 +355,7 @@ impl Contract {
             },
         );
         self.token.internal_register_account(&sender);
-        self.mint(&sender, STARTER_COINS);
+        self.mine(&sender, Activity::Genesis, GENESIS_GRANT);
 
         emit(
             "agent_registered",
@@ -278,7 +363,6 @@ impl Contract {
         );
     }
 
-    /// Post a question. The attached deposit is the bounty.
     #[payable]
     pub fn ask(&mut self, text: String, duration_sec: u64) -> u64 {
         let bounty = env::attached_deposit().as_yoctonear();
@@ -302,6 +386,7 @@ impl Contract {
             asker: asker.clone(),
             text: text.clone(),
             bounty: U128(bounty),
+            boost: U128(0),
             created_at: now,
             deadline: now + duration_ns,
             status: QuestionStatus::Open,
@@ -323,8 +408,6 @@ impl Contract {
         id
     }
 
-    /// Answer an open question. Registered agents only, no deposit allowed.
-    /// Burns `ANSWER_BURN` coins from the caller.
     pub fn answer(&mut self, question_id: u64, text: String) -> u64 {
         let sender = env::predecessor_account_id();
         require!(
@@ -344,7 +427,10 @@ impl Contract {
             env::block_timestamp() < question.deadline,
             "Question deadline has passed"
         );
-        require!(sender != question.asker, "Asker cannot answer their own question");
+        require!(
+            sender != question.asker,
+            "Asker cannot answer their own question"
+        );
         require!(
             self.answered.get(&(sender.clone(), question_id)).is_none(),
             "Already answered this question"
@@ -354,7 +440,7 @@ impl Contract {
             "Answer text length is invalid"
         );
 
-        self.burn(&sender, ANSWER_BURN);
+        self.burn(&sender, ANSWER_BURN, "answer");
 
         let id = self.next_answer_id;
         self.next_answer_id += 1;
@@ -383,8 +469,6 @@ impl Contract {
         id
     }
 
-    /// Upvote an answer. Registered accounts only, no deposit, one vote per
-    /// answer, `VOTES_PER_DAY` votes per calendar day, not your own answer.
     pub fn upvote(&mut self, answer_id: u64) {
         let sender = env::predecessor_account_id();
         require!(
@@ -396,7 +480,10 @@ impl Contract {
             .get(&sender)
             .expect("Only registered accounts can upvote");
         let mut answer = self.answers.get(&answer_id).expect("No such answer");
-        let question = self.questions.get(&answer.question_id).expect("No such question");
+        let question = self
+            .questions
+            .get(&answer.question_id)
+            .expect("No such question");
         require!(
             question.status == QuestionStatus::Open,
             "Question is not open"
@@ -427,6 +514,7 @@ impl Contract {
             self.agents.insert(&answer.author, &author);
         }
         self.voted.insert(&(sender.clone(), answer_id), &true);
+        self.mine(&sender, Activity::Upvote, UPVOTE_MINE);
 
         emit(
             "answer_upvoted",
@@ -436,7 +524,6 @@ impl Contract {
 
     // --- Feature 2: settle and pay the best answer -------------------------
 
-    /// The asker picks the winning answer at any time before settlement.
     pub fn pick_best(&mut self, question_id: u64, answer_id: u64) {
         let sender = env::predecessor_account_id();
         let question = self.questions.get(&question_id).expect("No such question");
@@ -453,8 +540,6 @@ impl Contract {
         self.settle_question(question_id, Some(answer_id));
     }
 
-    /// Anyone may settle after `deadline + grace`. Most-upvoted answer wins;
-    /// ties go to the earliest answer. No answers refunds the asker.
     pub fn settle(&mut self, question_id: u64) {
         let question = self.questions.get(&question_id).expect("No such question");
         require!(
@@ -471,8 +556,6 @@ impl Contract {
 
     // --- Views --------------------------------------------------------------
 
-    /// Questions newest-first. `status` is one of Open / Settled / Refunded or
-    /// `null`. `limit` is capped at [`MAX_PAGE_LIMIT`].
     pub fn get_questions(
         &self,
         status: Option<String>,
@@ -539,7 +622,6 @@ impl Contract {
             .collect()
     }
 
-    /// Single-call reputation gate other contracts can use: wins and upvotes.
     pub fn get_reputation(&self, account_id: AccountId) -> u64 {
         self.agents
             .get(&account_id)
@@ -552,9 +634,20 @@ impl Contract {
             questions: self.next_question_id,
             answers: self.next_answer_id,
             agents: self.agents.len(),
-            total_minted: U128(self.total_minted),
+            max_supply: U128(self.max_supply),
+            total_mined: U128(self.total_mined),
             total_burned: U128(self.total_burned),
             total_supply: self.token.ft_total_supply(),
+            era: era(self.total_mined, self.max_supply),
+            phase: match self.phase() {
+                Phase::Mining => "mining",
+                Phase::Recycle => "recycle",
+                Phase::Floor => "floor",
+            }
+            .to_string(),
+            reward_pool: U128(self.reward_pool),
+            booster_pool: U128(self.booster_pool),
+            mined_by_activity: self.mined_by_activity.iter().map(|v| U128(*v)).collect(),
             total_bounties_paid: U128(self.total_bounties_paid),
         }
     }
@@ -563,12 +656,22 @@ impl Contract {
         Config {
             treasury: self.treasury.clone(),
             grace_ns: self.grace_ns,
+            max_supply: U128(self.max_supply),
             registration_deposit: U128(REGISTRATION_DEPOSIT_YOCTO),
-            starter_coins: U128(STARTER_COINS),
+            genesis_grant: U128(GENESIS_GRANT),
             answer_burn: U128(ANSWER_BURN),
             win_mint: U128(WIN_MINT),
+            upvote_mine: U128(UPVOTE_MINE),
+            settle_mine: U128(SETTLE_MINE),
+            ask_mine_per_tenth_near: U128(ASK_MINE_PER_TENTH_NEAR),
+            ask_mine_max: U128(ASK_MINE_MAX),
+            boost_min: U128(BOOST_MIN),
+            extra_vote_burn: U128(EXTRA_VOTE_BURN),
+            claim_fee: U128(CLAIM_FEE_YOCTO),
             min_bounty: U128(MIN_BOUNTY_YOCTO),
             fee_bps: FEE_BPS as u32,
+            recycle_bps: RECYCLE_BPS as u32,
+            floor_bps: FLOOR_BPS as u32,
             min_duration_ns: MIN_DURATION_NS,
             max_duration_ns: MAX_DURATION_NS,
             votes_per_day: VOTES_PER_DAY,
@@ -584,6 +687,7 @@ impl Contract {
     fn to_view(&self, account_id: AccountId, agent: Agent) -> AgentView {
         let reputation = agent.wins * 10 + agent.upvotes_received;
         let coins = self.token.ft_balance_of(account_id.clone());
+        let unclaimed = self.unclaimed.get(&account_id).unwrap_or(0);
         AgentView {
             account_id,
             handle: agent.handle,
@@ -594,37 +698,143 @@ impl Contract {
             answers_count: agent.answers_count,
             reputation,
             coins,
+            unclaimed: U128(unclaimed),
         }
     }
 
-    fn mint(&mut self, account_id: &AccountId, amount: u128) {
-        self.token.internal_deposit(account_id, amount);
-        self.total_minted += amount;
-        FtMint {
-            owner_id: account_id,
-            amount: U128(amount),
-            memo: Some("broca mint"),
+    fn phase(&self) -> Phase {
+        if self.total_mined < self.max_supply {
+            Phase::Mining
+        } else if self.total_mined.saturating_sub(self.total_burned)
+            <= self.max_supply * FLOOR_BPS / 10_000
+        {
+            Phase::Floor
+        } else {
+            Phase::Recycle
         }
-        .emit();
     }
 
-    fn burn(&mut self, account_id: &AccountId, amount: u128) {
-        require!(
-            self.token.ft_balance_of(account_id.clone()).0 >= amount,
-            "Not enough BROCA coins"
+    fn budget(&self, activity: Activity) -> u128 {
+        self.max_supply * BUDGET_BPS[activity.index()] / 10_000
+    }
+
+    /// Mint new BROCA to the contract account (it is held for the miner until
+    /// they claim it). Keeps `ft_total_supply == total_mined - total_burned`.
+    fn mint_new(&mut self, amount: u128) {
+        let contract = env::current_account_id();
+        self.token.internal_deposit(&contract, amount);
+        self.total_mined += amount;
+    }
+
+    fn add_unclaimed(&mut self, account: &AccountId, amount: u128) {
+        let current = self.unclaimed.get(account).unwrap_or(0);
+        self.unclaimed.insert(account, &(current + amount));
+    }
+
+    /// Credit a reward. Applies era halving, the activity budget and the cap
+    /// while mining; once a budget is empty (or the cap is reached) it pays
+    /// from the reward pool at 1/8 of base. Genesis never pays from the pool.
+    fn mine(&mut self, account: &AccountId, activity: Activity, base: u128) -> u128 {
+        let index = activity.index();
+        let budget = self.budget(activity);
+        let used = self.mined_by_activity[index];
+        let mining = self.phase() == Phase::Mining && used < budget;
+
+        let reward = if mining {
+            let mut amount = if activity == Activity::Genesis {
+                base
+            } else {
+                let factor = era(self.total_mined, self.max_supply);
+                (base >> factor).max(1)
+            };
+            let budget_left = budget - used;
+            let cap_left = self.max_supply.saturating_sub(self.total_mined);
+            amount = amount.min(budget_left).min(cap_left);
+            if amount == 0 {
+                return 0;
+            }
+            self.mint_new(amount);
+            self.mined_by_activity[index] += amount;
+            amount
+        } else {
+            if activity == Activity::Genesis {
+                return 0;
+            }
+            let amount = (base >> 3).max(1).min(self.reward_pool);
+            if amount == 0 {
+                return 0;
+            }
+            self.reward_pool -= amount;
+            amount
+        };
+
+        self.add_unclaimed(account, reward);
+        emit(
+            "broca_mined",
+            json!({
+                "account": account,
+                "activity": index,
+                "amount": reward.to_string(),
+                "era": era(self.total_mined, self.max_supply),
+            }),
         );
-        self.token.internal_withdraw(account_id, amount);
-        self.total_burned += amount;
-        FtBurn {
-            owner_id: account_id,
-            amount: U128(amount),
-            memo: Some("broca burn"),
-        }
-        .emit();
+        reward
     }
 
-    /// Update all state first, then issue the transfer promises. No callbacks,
-    /// so a question can never be left half-settled.
+    /// Spend from unclaimed first, then liquid. Destroys or recycles according
+    /// to the current phase.
+    fn burn(&mut self, account: &AccountId, amount: u128, reason: &str) {
+        require!(amount > 0, "Burn amount must be positive");
+        let unclaimed = self.unclaimed.get(account).unwrap_or(0);
+        let from_unclaimed = unclaimed.min(amount);
+        let from_liquid = amount - from_unclaimed;
+        let liquid = self.token.ft_balance_of(account.clone()).0;
+        require!(liquid >= from_liquid, "Not enough BROCA coins");
+
+        if from_unclaimed > 0 {
+            self.unclaimed.insert(account, &(unclaimed - from_unclaimed));
+            let contract = env::current_account_id();
+            self.token.internal_withdraw(&contract, from_unclaimed);
+        }
+        if from_liquid > 0 {
+            self.token.internal_withdraw(account, from_liquid);
+        }
+
+        let (destroyed, recycled) = match self.phase() {
+            Phase::Mining => (amount, 0),
+            Phase::Recycle => {
+                let destroyed = amount * RECYCLE_BPS / 10_000;
+                (destroyed, amount - destroyed)
+            }
+            Phase::Floor => (0, amount),
+        };
+
+        self.total_burned += destroyed;
+        if recycled > 0 {
+            let contract = env::current_account_id();
+            self.token.internal_deposit(&contract, recycled);
+            self.reward_pool += recycled;
+        }
+        if destroyed > 0 {
+            FtBurn {
+                owner_id: account,
+                amount: U128(destroyed),
+                memo: Some("broca burn"),
+            }
+            .emit();
+        }
+        emit(
+            "broca_burned",
+            json!({
+                "account": account,
+                "reason": reason,
+                "amount": amount.to_string(),
+                "recycled": recycled.to_string(),
+            }),
+        );
+    }
+
+    /// Update all state first, then issue the transfer promises.
     fn settle_question(&mut self, question_id: u64, winner_answer_id: Option<u64>) {
         let mut question = self.questions.get(&question_id).expect("No such question");
         let bounty = question.bounty.0;
@@ -652,7 +862,7 @@ impl Contract {
                 let payout = bounty - fee;
                 self.total_bounties_paid += bounty;
 
-                self.mint(&winner.author, WIN_MINT);
+                let mined = self.mine(&winner.author, Activity::Win, WIN_MINT);
                 if let Some(mut agent) = self.agents.get(&winner.author) {
                     agent.wins += 1;
                     self.agents.insert(&winner.author, &agent);
@@ -682,7 +892,7 @@ impl Contract {
                         "bounty": bounty.to_string(),
                         "payout": payout.to_string(),
                         "fee": fee.to_string(),
-                        "mint": WIN_MINT.to_string(),
+                        "mined": mined.to_string(),
                     }),
                 );
             }
@@ -691,6 +901,29 @@ impl Contract {
 }
 
 // --- Free functions ---------------------------------------------------------
+
+/// Era derived from global progress toward the cap. 0 until 50% is mined, then
+/// one step per halving of the remaining distance: 50%, 75%, 87.5%, ...
+fn era(total_mined: u128, cap: u128) -> u32 {
+    if cap == 0 {
+        return 0;
+    }
+    let mut era = 0u32;
+    let mut denom: u128 = 2;
+    loop {
+        let threshold = cap.saturating_sub(cap / denom);
+        if threshold < cap && total_mined >= threshold {
+            era += 1;
+            denom = denom.saturating_mul(2);
+            if denom == 0 {
+                break;
+            }
+        } else {
+            break;
+        }
+    }
+    era
+}
 
 fn status_matches(status: &QuestionStatus, want: &str) -> bool {
     matches!(
@@ -715,10 +948,7 @@ fn validate_handle(handle: &str) {
     );
 }
 
-fn pick_winner(
-    question: &Question,
-    answers: &LookupMap<u64, Answer>,
-) -> Option<u64> {
+fn pick_winner(question: &Question, answers: &LookupMap<u64, Answer>) -> Option<u64> {
     let mut best: Option<(u64, u64)> = None;
     for answer_id in &question.answer_ids {
         if let Some(answer) = answers.get(answer_id) {
@@ -839,7 +1069,7 @@ impl FungibleTokenMetadataProvider for Contract {
     }
 }
 
-// --- Unit tests (section 6.5 of the PRD) ------------------------------------
+// --- Unit tests -------------------------------------------------------------
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
@@ -850,6 +1080,7 @@ mod tests {
     const T0: u64 = 1_700_000_000_000_000_000;
     const GRACE: u64 = 2 * 60 * 1_000_000_000;
     const ONE_NEAR: u128 = 1_000_000_000_000_000_000_000_000;
+    const DEMO_CAP: u128 = 21_000;
 
     fn acct(name: &str) -> AccountId {
         name.parse().unwrap()
@@ -866,9 +1097,13 @@ mod tests {
         b
     }
 
-    fn setup() -> Contract {
+    fn setup_cap(cap: u128) -> Contract {
         testing_env!(ctx("broca.testnet", 0, T0).build());
-        Contract::new(acct("treasury.testnet"), GRACE)
+        Contract::new(acct("treasury.testnet"), GRACE, U128(cap))
+    }
+
+    fn setup() -> Contract {
+        setup_cap(DEMO_CAP)
     }
 
     fn register(c: &mut Contract, who: &str, handle: &str) {
@@ -900,17 +1135,183 @@ mod tests {
         c.get_question(qid).deadline
     }
 
+    fn unclaimed(c: &Contract, who: &str) -> u128 {
+        c.get_agent(acct(who)).unwrap().unclaimed.0
+    }
+
+    fn liquid(c: &Contract, who: &str) -> u128 {
+        c.get_agent(acct(who)).unwrap().coins.0
+    }
+
+    // --- step 1: genesis, upvote, win, answer burn -------------------------
+
     #[test]
-    fn register_mints_starter_coins_and_blocks_duplicates() {
+    fn register_credits_genesis_grant_unclaimed() {
         let mut c = setup();
         register(&mut c, "alice.testnet", "alice");
         let agent = c.get_agent(acct("alice.testnet")).unwrap();
-        assert_eq!(agent.coins.0, STARTER_COINS);
+        assert_eq!(agent.unclaimed.0, GENESIS_GRANT);
+        assert_eq!(agent.coins.0, 0, "genesis grant is unclaimed, not liquid");
         assert_eq!(agent.handle, "alice");
-        assert_eq!(c.get_stats().total_minted, U128(STARTER_COINS));
-        assert_eq!(c.get_stats().total_supply, U128(STARTER_COINS));
-        assert_eq!(c.get_stats().agents, 1);
+        let stats = c.get_stats();
+        assert_eq!(stats.total_mined, U128(GENESIS_GRANT));
+        assert_eq!(stats.total_supply, U128(GENESIS_GRANT));
+        assert_eq!(stats.era, 0);
+        assert_eq!(stats.phase, "mining");
     }
+
+    #[test]
+    fn answer_burns_from_unclaimed_only() {
+        let mut c = setup();
+        register(&mut c, "alice.testnet", "alice");
+        let q = ask(&mut c, "carol.testnet", "hi", ONE_NEAR, 120);
+        answer(&mut c, "alice.testnet", q, "hello");
+        assert_eq!(unclaimed(&c, "alice.testnet"), GENESIS_GRANT - ANSWER_BURN);
+        assert_eq!(liquid(&c, "alice.testnet"), 0);
+        let stats = c.get_stats();
+        assert_eq!(stats.total_burned, U128(ANSWER_BURN));
+        assert_eq!(stats.total_supply, U128(GENESIS_GRANT - ANSWER_BURN));
+    }
+
+    #[test]
+    fn upvote_mines_to_the_voter() {
+        let mut c = setup();
+        register(&mut c, "alice.testnet", "alice");
+        register(&mut c, "bob.testnet", "bob");
+        let q = ask(&mut c, "carol.testnet", "hi", ONE_NEAR, 120);
+        let a = answer(&mut c, "alice.testnet", q, "hello");
+        let before = unclaimed(&c, "bob.testnet");
+        upvote(&mut c, "bob.testnet", a);
+        assert_eq!(unclaimed(&c, "bob.testnet"), before + UPVOTE_MINE);
+    }
+
+    #[test]
+    fn full_cycle_pays_winner_and_mines() {
+        let mut c = setup();
+        register(&mut c, "alice.testnet", "alice");
+        register(&mut c, "bob.testnet", "bob");
+        let q = ask(&mut c, "carol.testnet", "What is Broca?", ONE_NEAR, 120);
+        let a1 = answer(&mut c, "alice.testnet", q, "A bounty board");
+        let _a2 = answer(&mut c, "bob.testnet", q, "A board for agents");
+        testing_env!(ctx("carol.testnet", 0, T0 + 3).build());
+        c.pick_best(q, a1);
+
+        let question = c.get_question(q);
+        assert_eq!(question.status, QuestionStatus::Settled);
+        assert_eq!(question.winner_answer_id, Some(a1));
+        // alice: 100 genesis - 10 answer + 100 win = 190
+        assert_eq!(unclaimed(&c, "alice.testnet"), 190);
+        assert_eq!(unclaimed(&c, "bob.testnet"), 90);
+        assert_eq!(c.get_reputation(acct("alice.testnet")), 10);
+        assert_eq!(c.get_agent(acct("alice.testnet")).unwrap().wins, 1);
+
+        let stats = c.get_stats();
+        assert_eq!(stats.total_mined, U128(300));
+        assert_eq!(stats.total_burned, U128(20));
+        assert_eq!(stats.total_supply, U128(280));
+        assert_eq!(stats.total_bounties_paid, U128(ONE_NEAR));
+    }
+
+    #[test]
+    fn settle_timeout_picks_most_upvoted() {
+        let mut c = setup();
+        register(&mut c, "alice.testnet", "alice");
+        register(&mut c, "bob.testnet", "bob");
+        register(&mut c, "dave.testnet", "dave");
+        register(&mut c, "erin.testnet", "erin");
+        let q = ask(&mut c, "carol.testnet", "timeout path", ONE_NEAR, 120);
+        let _a1 = answer(&mut c, "alice.testnet", q, "first");
+        let a2 = answer(&mut c, "bob.testnet", q, "second");
+        upvote(&mut c, "dave.testnet", a2);
+        upvote(&mut c, "erin.testnet", a2);
+        let ts = deadline_of(&c, q) + GRACE + 1;
+        settle_at(&mut c, "dave.testnet", q, ts);
+
+        let question = c.get_question(q);
+        assert_eq!(question.status, QuestionStatus::Settled);
+        assert_eq!(question.winner_answer_id, Some(a2));
+        assert_eq!(c.get_agent(acct("bob.testnet")).unwrap().wins, 1);
+        assert_eq!(c.get_agent(acct("alice.testnet")).unwrap().upvotes_received, 0);
+    }
+
+    #[test]
+    fn settle_tie_goes_to_earliest() {
+        let mut c = setup();
+        register(&mut c, "alice.testnet", "alice");
+        register(&mut c, "bob.testnet", "bob");
+        register(&mut c, "dave.testnet", "dave");
+        register(&mut c, "erin.testnet", "erin");
+        let q = ask(&mut c, "carol.testnet", "tie path", ONE_NEAR, 120);
+        let a1 = answer(&mut c, "alice.testnet", q, "first");
+        let a2 = answer(&mut c, "bob.testnet", q, "second");
+        upvote(&mut c, "dave.testnet", a1);
+        upvote(&mut c, "erin.testnet", a2);
+        let ts = deadline_of(&c, q) + GRACE + 1;
+        settle_at(&mut c, "dave.testnet", q, ts);
+        assert_eq!(c.get_question(q).winner_answer_id, Some(a1));
+    }
+
+    #[test]
+    fn settle_without_answers_refunds() {
+        let mut c = setup();
+        let q = ask(&mut c, "carol.testnet", "no answers here", ONE_NEAR, 120);
+        let ts = deadline_of(&c, q) + GRACE + 1;
+        settle_at(&mut c, "dave.testnet", q, ts);
+        let question = c.get_question(q);
+        assert_eq!(question.status, QuestionStatus::Refunded);
+        assert_eq!(question.winner_answer_id, None);
+        assert_eq!(c.get_stats().total_bounties_paid, U128(0));
+    }
+
+    #[test]
+    fn supply_always_equals_mined_minus_burned() {
+        let mut c = setup();
+        register(&mut c, "alice.testnet", "alice");
+        register(&mut c, "bob.testnet", "bob");
+        register(&mut c, "dave.testnet", "dave");
+
+        let q1 = ask(&mut c, "carol.testnet", "q1", ONE_NEAR, 120);
+        let a1 = answer(&mut c, "alice.testnet", q1, "a1");
+        let _a2 = answer(&mut c, "bob.testnet", q1, "a2");
+        upvote(&mut c, "dave.testnet", a1);
+        testing_env!(ctx("carol.testnet", 0, T0 + 3).build());
+        c.pick_best(q1, a1);
+
+        let q2 = ask(&mut c, "carol.testnet", "q2", ONE_NEAR, 120);
+        let ts = deadline_of(&c, q2) + GRACE + 1;
+        settle_at(&mut c, "dave.testnet", q2, ts);
+
+        let stats = c.get_stats();
+        assert_eq!(stats.total_supply, U128(stats.total_mined.0 - stats.total_burned.0));
+        assert_eq!(stats.total_supply, c.ft_total_supply());
+        assert!(stats.total_mined.0 <= stats.max_supply.0);
+    }
+
+    // --- step 1: era / cap / budget ----------------------------------------
+
+    #[test]
+    fn era_halves_at_50_75_87_5_percent() {
+        assert_eq!(era(0, 1000), 0);
+        assert_eq!(era(499, 1000), 0);
+        assert_eq!(era(500, 1000), 1);
+        assert_eq!(era(749, 1000), 1);
+        assert_eq!(era(750, 1000), 2);
+        assert_eq!(era(874, 1000), 2);
+        assert_eq!(era(875, 1000), 3);
+    }
+
+    #[test]
+    fn genesis_grant_is_budget_limited() {
+        // cap 30 -> genesis budget 5% = 1 coin total.
+        let mut c = setup_cap(30);
+        register(&mut c, "alice.testnet", "alice");
+        register(&mut c, "bob.testnet", "bob");
+        assert_eq!(unclaimed(&c, "alice.testnet"), 1);
+        assert_eq!(unclaimed(&c, "bob.testnet"), 0);
+        assert_eq!(c.get_stats().total_mined, U128(1));
+    }
+
+    // --- rejections --------------------------------------------------------
 
     #[test]
     #[should_panic(expected = "Already registered")]
@@ -1010,11 +1411,12 @@ mod tests {
     fn reject_answer_with_zero_coins() {
         let mut c = setup();
         register(&mut c, "alice.testnet", "alice");
-        for _ in 0..STARTER_COINS {
+        let answers = GENESIS_GRANT / ANSWER_BURN; // 10
+        for _ in 0..answers {
             let q = ask(&mut c, "carol.testnet", "q", MIN_BOUNTY_YOCTO, 120);
             answer(&mut c, "alice.testnet", q, "a");
         }
-        assert_eq!(c.get_agent(acct("alice.testnet")).unwrap().coins.0, 0);
+        assert_eq!(unclaimed(&c, "alice.testnet"), 0);
         let q = ask(&mut c, "carol.testnet", "q", MIN_BOUNTY_YOCTO, 120);
         answer(&mut c, "alice.testnet", q, "a");
     }
@@ -1074,105 +1476,5 @@ mod tests {
         let ts = deadline_of(&c, q) + GRACE + 1;
         settle_at(&mut c, "dave.testnet", q, ts);
         settle_at(&mut c, "dave.testnet", q, ts + 1);
-    }
-
-    #[test]
-    fn full_cycle_pick_best_pays_and_mints() {
-        let mut c = setup();
-        register(&mut c, "alice.testnet", "alice");
-        register(&mut c, "bob.testnet", "bob");
-        let q = ask(&mut c, "carol.testnet", "What is Broca?", ONE_NEAR, 120);
-        let a1 = answer(&mut c, "alice.testnet", q, "A bounty board");
-        let _a2 = answer(&mut c, "bob.testnet", q, "A board for agents");
-        testing_env!(ctx("carol.testnet", 0, T0 + 3).build());
-        c.pick_best(q, a1);
-
-        let question = c.get_question(q);
-        assert_eq!(question.status, QuestionStatus::Settled);
-        assert_eq!(question.winner_answer_id, Some(a1));
-        assert_eq!(c.get_agent(acct("alice.testnet")).unwrap().coins.0, 19);
-        assert_eq!(c.get_agent(acct("bob.testnet")).unwrap().coins.0, 9);
-        assert_eq!(c.get_reputation(acct("alice.testnet")), 10);
-        assert_eq!(c.get_agent(acct("alice.testnet")).unwrap().wins, 1);
-
-        let stats = c.get_stats();
-        assert_eq!(stats.total_minted, U128(30));
-        assert_eq!(stats.total_burned, U128(2));
-        assert_eq!(stats.total_supply, U128(28));
-        assert_eq!(stats.total_bounties_paid, U128(ONE_NEAR));
-    }
-
-    #[test]
-    fn settle_timeout_picks_most_upvoted() {
-        let mut c = setup();
-        register(&mut c, "alice.testnet", "alice");
-        register(&mut c, "bob.testnet", "bob");
-        register(&mut c, "dave.testnet", "dave");
-        register(&mut c, "erin.testnet", "erin");
-        let q = ask(&mut c, "carol.testnet", "timeout path", ONE_NEAR, 120);
-        let _a1 = answer(&mut c, "alice.testnet", q, "first");
-        let a2 = answer(&mut c, "bob.testnet", q, "second");
-        upvote(&mut c, "dave.testnet", a2);
-        upvote(&mut c, "erin.testnet", a2);
-        let ts = deadline_of(&c, q) + GRACE + 1;
-        settle_at(&mut c, "dave.testnet", q, ts);
-
-        let question = c.get_question(q);
-        assert_eq!(question.status, QuestionStatus::Settled);
-        assert_eq!(question.winner_answer_id, Some(a2));
-        assert_eq!(c.get_agent(acct("bob.testnet")).unwrap().wins, 1);
-        assert_eq!(c.get_agent(acct("alice.testnet")).unwrap().upvotes_received, 0);
-    }
-
-    #[test]
-    fn settle_tie_goes_to_earliest() {
-        let mut c = setup();
-        register(&mut c, "alice.testnet", "alice");
-        register(&mut c, "bob.testnet", "bob");
-        register(&mut c, "dave.testnet", "dave");
-        register(&mut c, "erin.testnet", "erin");
-        let q = ask(&mut c, "carol.testnet", "tie path", ONE_NEAR, 120);
-        let a1 = answer(&mut c, "alice.testnet", q, "first");
-        let a2 = answer(&mut c, "bob.testnet", q, "second");
-        upvote(&mut c, "dave.testnet", a1);
-        upvote(&mut c, "erin.testnet", a2);
-        let ts = deadline_of(&c, q) + GRACE + 1;
-        settle_at(&mut c, "dave.testnet", q, ts);
-        assert_eq!(c.get_question(q).winner_answer_id, Some(a1));
-    }
-
-    #[test]
-    fn settle_without_answers_refunds() {
-        let mut c = setup();
-        let q = ask(&mut c, "carol.testnet", "no answers here", ONE_NEAR, 120);
-        let ts = deadline_of(&c, q) + GRACE + 1;
-        settle_at(&mut c, "dave.testnet", q, ts);
-        let question = c.get_question(q);
-        assert_eq!(question.status, QuestionStatus::Refunded);
-        assert_eq!(question.winner_answer_id, None);
-        assert_eq!(c.get_stats().total_bounties_paid, U128(0));
-    }
-
-    #[test]
-    fn supply_always_equals_minted_minus_burned() {
-        let mut c = setup();
-        register(&mut c, "alice.testnet", "alice");
-        register(&mut c, "bob.testnet", "bob");
-        register(&mut c, "dave.testnet", "dave");
-
-        let q1 = ask(&mut c, "carol.testnet", "q1", ONE_NEAR, 120);
-        let a1 = answer(&mut c, "alice.testnet", q1, "a1");
-        let _a2 = answer(&mut c, "bob.testnet", q1, "a2");
-        upvote(&mut c, "dave.testnet", a1);
-        testing_env!(ctx("carol.testnet", 0, T0 + 3).build());
-        c.pick_best(q1, a1);
-
-        let q2 = ask(&mut c, "carol.testnet", "q2", ONE_NEAR, 120);
-        let ts = deadline_of(&c, q2) + GRACE + 1;
-        settle_at(&mut c, "dave.testnet", q2, ts);
-
-        let stats = c.get_stats();
-        assert_eq!(stats.total_supply, U128(stats.total_minted.0 - stats.total_burned.0));
-        assert_eq!(stats.total_supply, c.ft_total_supply());
     }
 }

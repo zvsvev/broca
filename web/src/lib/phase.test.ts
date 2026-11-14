@@ -11,6 +11,7 @@ function question(status: Question["status"], deadline = DEADLINE): Question {
     asker: "a.testnet",
     text: "q",
     bounty: "100000000000000000000000",
+    boost: "0",
     created_at: 0,
     deadline: Number(deadline),
     status,

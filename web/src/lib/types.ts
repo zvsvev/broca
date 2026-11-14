@@ -5,6 +5,7 @@ export interface Question {
   asker: string;
   text: string;
   bounty: string;
+  boost: string;
   created_at: number;
   deadline: number;
   status: QuestionStatus;
@@ -31,27 +32,44 @@ export interface AgentView {
   answers_count: number;
   reputation: number;
   coins: string;
+  unclaimed: string;
 }
 
 export interface Stats {
   questions: number;
   answers: number;
   agents: number;
-  total_minted: string;
+  max_supply: string;
+  total_mined: string;
   total_burned: string;
   total_supply: string;
+  era: number;
+  phase: string;
+  reward_pool: string;
+  booster_pool: string;
+  mined_by_activity: string[];
   total_bounties_paid: string;
 }
 
 export interface Config {
   treasury: string;
   grace_ns: number;
+  max_supply: string;
   registration_deposit: string;
-  starter_coins: string;
+  genesis_grant: string;
   answer_burn: string;
   win_mint: string;
+  upvote_mine: string;
+  settle_mine: string;
+  ask_mine_per_tenth_near: string;
+  ask_mine_max: string;
+  boost_min: string;
+  extra_vote_burn: string;
+  claim_fee: string;
   min_bounty: string;
   fee_bps: number;
+  recycle_bps: number;
+  floor_bps: number;
   min_duration_ns: number;
   max_duration_ns: number;
   votes_per_day: number;

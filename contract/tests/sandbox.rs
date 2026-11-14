@@ -1,8 +1,5 @@
 //! Sandbox integration tests: deploy the real WASM to a local NEAR node and
-//! exercise the full money flow (bounty payout, fee, mint/burn, refunds).
-//!
-//! Run with `cargo test` (unit + sandbox). The first run downloads a
-//! `near-sandbox` node binary and compiles the contract to WASM.
+//! exercise the money + mining flow.
 
 use near_account_id::AccountId as SandboxAccountId;
 use near_api::types::NearToken;
@@ -14,8 +11,8 @@ use testresult::TestResult;
 
 const ONE_NEAR: u128 = 1_000_000_000_000_000_000_000_000;
 const FEE_BPS: u128 = 500;
-/// Short grace window so timeout tests do not have to wait.
 const GRACE_NS: u64 = 1_000_000_000;
+const MAX_SUPPLY: u128 = 21_000;
 
 struct Env {
     network: NetworkConfig,
@@ -29,7 +26,6 @@ fn aid(name: &str) -> AccountId {
 }
 
 async fn funded(sandbox: &near_sandbox::Sandbox, name: &str) -> TestResult<AccountId> {
-    // near-sandbox takes `near-account-id` v3, near-api uses v2; bridge by string.
     let sandbox_id: SandboxAccountId = name.parse()?;
     sandbox
         .create_account(sandbox_id)
@@ -50,9 +46,9 @@ async fn view(env: &Env, method: &str, args: Value) -> TestResult<Value> {
     Ok(data)
 }
 
-async fn ft_balance(env: &Env, who: &AccountId) -> TestResult<u128> {
-    let value = view(env, "ft_balance_of", json!({ "account_id": who.to_string() })).await?;
-    Ok(value.as_str().unwrap().parse()?)
+async fn unclaimed(env: &Env, who: &AccountId) -> TestResult<u128> {
+    let value = view(env, "get_agent", json!({ "account_id": who.to_string() })).await?;
+    Ok(value["unclaimed"].as_str().unwrap().parse()?)
 }
 
 async fn near_balance(env: &Env, who: &AccountId) -> TestResult<u128> {
@@ -98,7 +94,14 @@ async fn setup() -> TestResult<Env> {
 
     Contract::deploy(contract_id.clone())
         .use_code(wasm)
-        .with_init_call("new", json!({ "treasury": treasury.to_string(), "grace_ns": GRACE_NS }))?
+        .with_init_call(
+            "new",
+            json!({
+                "treasury": treasury.to_string(),
+                "grace_ns": GRACE_NS,
+                "max_supply": MAX_SUPPLY.to_string()
+            }),
+        )?
         .with_signer(signer.clone())
         .send_to(&network)
         .await?
@@ -157,7 +160,7 @@ async fn upvote(env: &Env, who: &AccountId, answer_id: u64) -> TestResult<()> {
 }
 
 #[tokio::test]
-async fn pick_best_pays_bounty_and_mints() -> TestResult {
+async fn pick_best_pays_bounty_and_mines() -> TestResult {
     let env = setup().await?;
     let treasury = aid("treasury.sandbox");
     let alice = funded(&env.sandbox, "alice.sandbox").await?;
@@ -166,13 +169,13 @@ async fn pick_best_pays_bounty_and_mints() -> TestResult {
 
     register(&env, &alice, "alice").await?;
     register(&env, &bob, "bob").await?;
-    ask(&env, &carol, "What is Broca?", 120).await?;
+    assert_eq!(unclaimed(&env, &alice).await?, 100, "genesis grant to unclaimed");
 
+    ask(&env, &carol, "What is Broca?", 120).await?;
     answer(&env, &alice, 0, "A bounty board").await?;
     answer(&env, &bob, 0, "A Q&A for agents").await?;
-
-    assert_eq!(ft_balance(&env, &alice).await?, 9, "answering burns 1 coin");
-    assert_eq!(ft_balance(&env, &bob).await?, 9, "answering burns 1 coin");
+    assert_eq!(unclaimed(&env, &alice).await?, 90, "answering burns 10");
+    assert_eq!(unclaimed(&env, &bob).await?, 90, "answering burns 10");
 
     let alice_before = near_balance(&env, &alice).await?;
     let treasury_before = near_balance(&env, &treasury).await?;
@@ -181,35 +184,17 @@ async fn pick_best_pays_bounty_and_mints() -> TestResult {
 
     let fee = ONE_NEAR * FEE_BPS / 10_000;
     let payout = ONE_NEAR - fee;
-    assert_eq!(
-        near_balance(&env, &alice).await? - alice_before,
-        payout,
-        "winner receives bounty minus fee"
-    );
-    assert_eq!(
-        near_balance(&env, &treasury).await? - treasury_before,
-        fee,
-        "treasury receives the protocol fee"
-    );
-    assert_eq!(ft_balance(&env, &alice).await?, 19, "winner is minted 10 coins");
+    assert_eq!(near_balance(&env, &alice).await? - alice_before, payout);
+    assert_eq!(near_balance(&env, &treasury).await? - treasury_before, fee);
+    assert_eq!(unclaimed(&env, &alice).await?, 190, "winner mines 100");
 
     let stats = view(&env, "get_stats", json!({})).await?;
-    let supply: u128 = stats["total_supply"].as_str().unwrap().parse()?;
-    let minted: u128 = stats["total_minted"].as_str().unwrap().parse()?;
-    let burned: u128 = stats["total_burned"].as_str().unwrap().parse()?;
-    assert_eq!(supply, minted - burned, "supply == minted - burned");
-
-    // NEP-141 transfer still works.
-    call(
-        &env,
-        &bob,
-        "ft_transfer",
-        json!({ "receiver_id": alice.to_string(), "amount": "1", "memo": null }),
-        NearToken::from_yoctonear(1),
-    )
-    .await?;
-    assert_eq!(ft_balance(&env, &alice).await?, 20);
-    assert_eq!(ft_balance(&env, &bob).await?, 8);
+    assert_eq!(stats["total_mined"], "300");
+    assert_eq!(stats["total_burned"], "20");
+    assert_eq!(stats["total_supply"], "280");
+    assert_eq!(stats["max_supply"], "21000");
+    assert_eq!(stats["era"], 0);
+    assert_eq!(stats["phase"], "mining");
 
     Ok(())
 }
@@ -227,14 +212,12 @@ async fn timeout_settle_and_refund() -> TestResult {
         register(&env, who, handle).await?;
     }
 
-    // Question with answers: timeout settles on most upvotes.
     ask(&env, &carol, "Timeout question", 120).await?;
     answer(&env, &alice, 0, "first").await?;
     answer(&env, &bob, 0, "second").await?;
     upvote(&env, &dave, 1).await?;
     upvote(&env, &erin, 1).await?;
 
-    // Advance the chain past the deadline + grace window.
     env.sandbox.fast_forward(1000).await?;
     call(&env, &dave, "settle", json!({ "question_id": 0 }), NearToken::from_yoctonear(0)).await?;
     let q0 = view(&env, "get_question", json!({ "question_id": 0 })).await?;
@@ -243,21 +226,16 @@ async fn timeout_settle_and_refund() -> TestResult {
     assert_eq!(
         view(&env, "get_reputation", json!({ "account_id": bob.to_string() })).await?,
         12,
-        "reputation = 10 for the win + 2 upvotes received"
+        "10 for the win + 2 upvotes received"
     );
 
-    // Question with no answers: timeout refunds the asker.
     ask(&env, &carol, "Refund question", 120).await?;
     let carol_before = near_balance(&env, &carol).await?;
     env.sandbox.fast_forward(1000).await?;
     call(&env, &dave, "settle", json!({ "question_id": 1 }), NearToken::from_yoctonear(0)).await?;
     let q1 = view(&env, "get_question", json!({ "question_id": 1 })).await?;
     assert_eq!(q1["status"], "Refunded");
-    assert_eq!(
-        near_balance(&env, &carol).await?,
-        carol_before + ONE_NEAR,
-        "no-answer bounty is refunded"
-    );
+    assert_eq!(near_balance(&env, &carol).await?, carol_before + ONE_NEAR);
 
     Ok(())
 }
