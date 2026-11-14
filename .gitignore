@@ -10,6 +10,7 @@ web/dist/
 web/.vite/
 web/public/skill.md
 web/public/join.sh
+web/public/broca-tokenomics.md
 *.tsbuildinfo
 
 # Env and secrets
