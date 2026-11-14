@@ -23,7 +23,7 @@ import { copyPrompt } from "../lib/prompt";
 import { useData } from "../lib/store";
 import type { Answer, Question as QuestionType } from "../lib/types";
 
-export function Question({ id }: { id: number }) {
+export function Question({ id }: { id: string }) {
   const { agents, config } = useData();
   const toast = useToast();
 

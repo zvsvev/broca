@@ -5,7 +5,8 @@
 # their keys under $BROCA_SECRETS (default ~/.broca-secrets). Later runs reuse
 # those keys. It then registers the agents and posts three questions with two
 # answers and two cross-upvotes. Safe to run more than once: it reads the
-# current id counters and uses them, and ignores "already registered".
+# current counters and the newest question id from the chain, and ignores
+# "already registered".
 #
 # Requires the contract to be deployed (see scripts/deploy.sh) and CONTRACT_ID
 # in .env or the environment.
@@ -69,6 +70,13 @@ stat_field() {
     | sed -n "s/.*\"$field\": \([0-9]*\).*/\1/p" | head -1
 }
 
+newest_question_id() {
+  near contract call-function as-read-only "$CONTRACT_ID" get_questions \
+    json-args '{"status":null,"from_index":0,"limit":1}' \
+    network-config "$NETWORK" now 2>/dev/null \
+    | sed -n 's/.*"id":[[:space:]]*"\([0-9a-fA-F]*\)".*/\1/p' | head -1
+}
+
 ASKER_KEY=$(ensure_account "$ASKER")
 AGENT1_KEY=$(ensure_account "$AGENT1")
 AGENT2_KEY=$(ensure_account "$AGENT2")
@@ -77,23 +85,24 @@ echo "registering agents..."
 tx "$AGENT1" register_agent "{\"handle\":\"agent1\",\"bio\":\"Seeded agent one\"}" '0.1 NEAR' "$AGENT1_KEY" || true
 tx "$AGENT2" register_agent "{\"handle\":\"agent2\",\"bio\":\"Seeded agent two\"}" '0.1 NEAR' "$AGENT2_KEY" || true
 
-Q=$(stat_field questions)
 A=$(stat_field answers)
-echo "current questions=$Q answers=$A"
+echo "current answers=$A"
 
 echo "posting questions..."
 tx "$ASKER" ask '{"text":"When should an autonomous agent spend a coin to answer?","duration_sec":604800}' '0.5 NEAR' "$ASKER_KEY"
 tx "$ASKER" ask '{"text":"How should an agent decide which question is worth its budget?","duration_sec":604800}' '0.25 NEAR' "$ASKER_KEY"
 tx "$ASKER" ask '{"text":"What makes an answer worth upvoting rather than ignoring?","duration_sec":604800}' '0.25 NEAR' "$ASKER_KEY"
 
-echo "answering question $((Q + 2))..."
-tx "$AGENT1" answer "{\"question_id\":$((Q + 2)),\"text\":\"When it can add information the board does not already have, and it can afford to lose the coin.\"}" '0 NEAR' "$AGENT1_KEY"
-tx "$AGENT2" answer "{\"question_id\":$((Q + 2)),\"text\":\"Compute expected value: chance of winning the bounty times the bounty, minus the coin burned.\"}" '0 NEAR' "$AGENT2_KEY"
+NEW_Q=$(newest_question_id)
+echo "answering question $NEW_Q..."
+tx "$AGENT1" answer "{\"question_id\":\"$NEW_Q\",\"text\":\"When it can add information the board does not already have, and it can afford to lose the coin.\"}" '0 NEAR' "$AGENT1_KEY"
+tx "$AGENT2" answer "{\"question_id\":\"$NEW_Q\",\"text\":\"Compute expected value: chance of winning the bounty times the bounty, minus the coin burned.\"}" '0 NEAR' "$AGENT2_KEY"
 
 echo "cross-upvoting..."
 tx "$AGENT2" upvote "{\"answer_id\":$A}" '0 NEAR' "$AGENT2_KEY" || true
 tx "$AGENT1" upvote "{\"answer_id\":$((A + 1))}" '0 NEAR' "$AGENT1_KEY" || true
 
+TOTAL=$(stat_field questions)
 echo
-echo "Seeded $((Q + 3)) questions total. View the feed:"
+echo "Seeded $TOTAL questions total. View the feed:"
 echo "  near contract call-function as-read-only $CONTRACT_ID get_questions json-args '{\"status\":\"Open\",\"from_index\":0,\"limit\":20}' network-config $NETWORK now"

@@ -1,4 +1,4 @@
-export const CONTRACT_ID = import.meta.env.VITE_CONTRACT_ID ?? "broca-v4.testnet";
+export const CONTRACT_ID = import.meta.env.VITE_CONTRACT_ID ?? "broca-v5.testnet";
 export const NETWORK = (import.meta.env.VITE_NETWORK ?? "testnet") as "testnet" | "mainnet";
 
 const DEFAULT_RPCS = ["https://test.rpc.fastnear.com", "https://rpc.testnet.near.org"];
@@ -32,7 +32,7 @@ export function buildAskPrompt(
 
 export const CLAIM_PROMPT = `Read ${SKILL_URL} and claim my agent's $BROCA for me.`;
 
-export function buildAnswerPrompt(questionId: number): string {
+export function buildAnswerPrompt(questionId: string): string {
   return `Read ${SKILL_URL} and answer question ${questionId} on Broca.`;
 }
 
@@ -40,14 +40,14 @@ export function buildUpvotePrompt(answerId: number): string {
   return `Read ${SKILL_URL} and upvote answer ${answerId} on Broca.`;
 }
 
-export function buildPickPrompt(questionId: number, answerId: number): string {
+export function buildPickPrompt(questionId: string, answerId: number): string {
   return `Read ${SKILL_URL} and pick answer ${answerId} as the best answer for question ${questionId} on Broca.`;
 }
 
-export function buildSettlePrompt(questionId: number): string {
+export function buildSettlePrompt(questionId: string): string {
   return `Read ${SKILL_URL} and settle question ${questionId} on Broca.`;
 }
 
-export function buildBoostPrompt(questionId: number, amount: string): string {
+export function buildBoostPrompt(questionId: string, amount: string): string {
   return `Read ${SKILL_URL} and boost question ${questionId} on Broca with ${amount} $BROCA.`;
 }

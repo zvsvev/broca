@@ -107,7 +107,7 @@ pub struct Agent {
 #[near(serializers = [borsh, json])]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Question {
-    pub id: u64,
+    pub id: String,
     pub asker: AccountId,
     pub text: String,
     pub bounty: U128,
@@ -123,7 +123,7 @@ pub struct Question {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Answer {
     pub id: u64,
-    pub question_id: u64,
+    pub question_id: String,
     pub author: AccountId,
     pub text: String,
     pub created_at: u64,
@@ -220,10 +220,10 @@ pub struct Contract {
     metadata: LazyOption<FungibleTokenMetadata>,
     agents: UnorderedMap<AccountId, Agent>,
     handles: LookupMap<String, AccountId>,
-    questions: UnorderedMap<u64, Question>,
+    questions: UnorderedMap<String, Question>,
     answers: LookupMap<u64, Answer>,
     voted: LookupMap<(AccountId, u64), bool>,
-    answered: LookupMap<(AccountId, u64), bool>,
+    answered: LookupMap<(AccountId, String), bool>,
     unclaimed: LookupMap<AccountId, u128>,
     burned_by: LookupMap<AccountId, u128>,
     ft_registered: LookupMap<AccountId, bool>,
@@ -231,7 +231,7 @@ pub struct Contract {
     total_mined: u128,
     total_burned: u128,
     treasury_minted: u128,
-    next_question_id: u64,
+    question_ids: Vec<String>,
     next_answer_id: u64,
     total_bounties_paid: u128,
 }
@@ -269,7 +269,7 @@ impl Contract {
             total_mined: 0,
             total_burned: 0,
             treasury_minted: 0,
-            next_question_id: 0,
+            question_ids: Vec::new(),
             next_answer_id: 0,
             total_bounties_paid: 0,
         };
@@ -337,7 +337,7 @@ impl Contract {
     }
 
     #[payable]
-    pub fn ask(&mut self, text: String, duration_sec: u64) -> u64 {
+    pub fn ask(&mut self, text: String, duration_sec: u64) -> String {
         let bounty = env::attached_deposit().as_yoctonear();
         require!(bounty >= MIN_BOUNTY_YOCTO, "Bounty is below the minimum");
         require!(
@@ -350,12 +350,11 @@ impl Contract {
             "Duration is out of range"
         );
 
-        let id = self.next_question_id;
-        self.next_question_id += 1;
+        let id = self.generate_question_id();
         let now = env::block_timestamp();
         let asker = env::predecessor_account_id();
         let question = Question {
-            id,
+            id: id.clone(),
             asker: asker.clone(),
             text: text.clone(),
             bounty: U128(bounty),
@@ -367,6 +366,7 @@ impl Contract {
             answer_ids: Vec::new(),
         };
         self.questions.insert(&id, &question);
+        self.question_ids.push(id.clone());
 
         emit(
             "question_asked",
@@ -381,7 +381,7 @@ impl Contract {
         id
     }
 
-    pub fn answer(&mut self, question_id: u64, text: String) -> u64 {
+    pub fn answer(&mut self, question_id: String, text: String) -> u64 {
         let sender = env::predecessor_account_id();
         require!(
             env::attached_deposit().as_yoctonear() == 0,
@@ -405,7 +405,7 @@ impl Contract {
             "Asker cannot answer their own question"
         );
         require!(
-            self.answered.get(&(sender.clone(), question_id)).is_none(),
+            self.answered.get(&(sender.clone(), question_id.clone())).is_none(),
             "Already answered this question"
         );
         require!(
@@ -421,7 +421,7 @@ impl Contract {
             &id,
             &Answer {
                 id,
-                question_id,
+                question_id: question_id.clone(),
                 author: sender.clone(),
                 text: text.clone(),
                 created_at: env::block_timestamp(),
@@ -430,7 +430,7 @@ impl Contract {
         );
         question.answer_ids.push(id);
         self.questions.insert(&question_id, &question);
-        self.answered.insert(&(sender.clone(), question_id), &true);
+        self.answered.insert(&(sender.clone(), question_id.clone()), &true);
 
         agent.answers_count += 1;
         self.agents.insert(&sender, &agent);
@@ -500,7 +500,7 @@ impl Contract {
     }
 
     /// Boost a question's visibility. Burns at least `BOOST_MIN` BROCA.
-    pub fn boost(&mut self, question_id: u64, amount: U128) {
+    pub fn boost(&mut self, question_id: String, amount: U128) {
         let sender = env::predecessor_account_id();
         require!(amount.0 >= BOOST_MIN, "Boost is below the minimum");
         let mut question = self.questions.get(&question_id).expect("No such question");
@@ -544,7 +544,7 @@ impl Contract {
 
     // --- Settle ------------------------------------------------------------
 
-    pub fn pick_best(&mut self, question_id: u64, answer_id: u64) {
+    pub fn pick_best(&mut self, question_id: String, answer_id: u64) {
         let sender = env::predecessor_account_id();
         let question = self.questions.get(&question_id).expect("No such question");
         require!(sender == question.asker, "Only the asker can pick the best");
@@ -560,7 +560,7 @@ impl Contract {
         self.settle_question(question_id, Some(answer_id));
     }
 
-    pub fn settle(&mut self, question_id: u64) {
+    pub fn settle(&mut self, question_id: String) {
         let caller = env::predecessor_account_id();
         let question = self.questions.get(&question_id).expect("No such question");
         require!(
@@ -614,10 +614,8 @@ impl Contract {
         }
         let status = status.map(|s| s.to_ascii_lowercase());
         let mut skipped = 0u64;
-        let mut cursor = self.next_question_id;
-        while cursor > 0 {
-            cursor -= 1;
-            let question = self.questions.get(&cursor).expect("question index gap");
+        for id in self.question_ids.iter().rev() {
+            let question = self.questions.get(id).expect("question index gap");
             if let Some(want) = &status {
                 if !status_matches(&question.status, want) {
                     continue;
@@ -635,13 +633,13 @@ impl Contract {
         out
     }
 
-    pub fn get_question(&self, question_id: u64) -> Question {
+    pub fn get_question(&self, question_id: String) -> Question {
         self.questions
             .get(&question_id)
             .expect("No such question")
     }
 
-    pub fn get_answers(&self, question_id: u64) -> Vec<Answer> {
+    pub fn get_answers(&self, question_id: String) -> Vec<Answer> {
         match self.questions.get(&question_id) {
             Some(question) => question
                 .answer_ids
@@ -676,7 +674,7 @@ impl Contract {
 
     pub fn get_stats(&self) -> Stats {
         Stats {
-            questions: self.next_question_id,
+            questions: self.question_ids.len() as u64,
             answers: self.next_answer_id,
             agents: self.agents.len(),
             max_supply: U128(self.max_supply),
@@ -751,6 +749,32 @@ impl Contract {
         if !self.ft_registered.get(account).unwrap_or(false) {
             self.token.internal_register_account(account);
             self.ft_registered.insert(account, &true);
+        }
+    }
+
+    /// 12-char lowercase hex id derived from block data plus a counter, retried on collision.
+    fn generate_question_id(&self) -> String {
+        let mut nonce: u64 = 0;
+        loop {
+            let seed = format!(
+                "{}:{}:{}:{}:{}:{}:{}",
+                env::current_account_id(),
+                env::predecessor_account_id(),
+                env::block_timestamp(),
+                env::block_height(),
+                self.question_ids.len(),
+                nonce,
+                env::attached_deposit().as_yoctonear(),
+            );
+            let hash = env::sha256(seed.as_bytes());
+            let mut id = String::with_capacity(12);
+            for byte in &hash[..6] {
+                id.push_str(&format!("{:02x}", byte));
+            }
+            if self.questions.get(&id).is_none() {
+                return id;
+            }
+            nonce += 1;
         }
     }
 
@@ -840,7 +864,7 @@ impl Contract {
         );
     }
 
-    fn settle_question(&mut self, question_id: u64, winner_answer_id: Option<u64>) {
+    fn settle_question(&mut self, question_id: String, winner_answer_id: Option<u64>) {
         let mut question = self.questions.get(&question_id).expect("No such question");
         let bounty = question.bounty.0;
 
@@ -1134,14 +1158,14 @@ mod tests {
         c.register_agent(handle.to_string(), "agent".to_string());
     }
 
-    fn ask(c: &mut Contract, who: &str, text: &str, bounty: u128, duration_sec: u64) -> u64 {
+    fn ask(c: &mut Contract, who: &str, text: &str, bounty: u128, duration_sec: u64) -> String {
         testing_env!(ctx(who, bounty, T0).build());
         c.ask(text.to_string(), duration_sec)
     }
 
-    fn answer(c: &mut Contract, who: &str, qid: u64, text: &str) -> u64 {
+    fn answer(c: &mut Contract, who: &str, qid: &str, text: &str) -> u64 {
         testing_env!(ctx(who, 0, T0 + 1).build());
-        c.answer(qid, text.to_string())
+        c.answer(qid.to_string(), text.to_string())
     }
 
     fn upvote(c: &mut Contract, who: &str, aid: u64) {
@@ -1149,9 +1173,9 @@ mod tests {
         c.upvote(aid);
     }
 
-    fn settle_at(c: &mut Contract, who: &str, qid: u64, ts: u64) {
+    fn settle_at(c: &mut Contract, who: &str, qid: &str, ts: u64) {
         testing_env!(ctx(who, 0, ts).build());
-        c.settle(qid);
+        c.settle(qid.to_string());
     }
 
     fn claim(c: &mut Contract, who: &str) {
@@ -1159,8 +1183,8 @@ mod tests {
         c.claim();
     }
 
-    fn deadline_of(c: &Contract, qid: u64) -> u64 {
-        c.get_question(qid).deadline
+    fn deadline_of(c: &Contract, qid: &str) -> u64 {
+        c.get_question(qid.to_string()).deadline
     }
 
     fn unclaimed(c: &Contract, who: &str) -> u128 {
@@ -1193,7 +1217,7 @@ mod tests {
         let mut c = setup();
         register(&mut c, "alice.testnet", "alice");
         let q = ask(&mut c, "carol.testnet", "hi", ONE_NEAR, 120);
-        answer(&mut c, "alice.testnet", q, "hello");
+        answer(&mut c, "alice.testnet", &q, "hello");
         assert_eq!(unclaimed(&c, "alice.testnet"), GENESIS_GRANT - ANSWER_BURN);
         assert_eq!(liquid(&c, "alice.testnet"), 0);
         assert_eq!(c.get_stats().total_burned, U128(ANSWER_BURN));
@@ -1205,7 +1229,7 @@ mod tests {
         register(&mut c, "alice.testnet", "alice");
         register(&mut c, "bob.testnet", "bob");
         let q = ask(&mut c, "carol.testnet", "hi", ONE_NEAR, 120);
-        let a = answer(&mut c, "alice.testnet", q, "hello");
+        let a = answer(&mut c, "alice.testnet", &q, "hello");
         let before = unclaimed(&c, "bob.testnet");
         upvote(&mut c, "bob.testnet", a);
         assert_eq!(unclaimed(&c, "bob.testnet"), before + UPVOTE_MINE);
@@ -1217,12 +1241,12 @@ mod tests {
         register(&mut c, "alice.testnet", "alice");
         register(&mut c, "bob.testnet", "bob");
         let q = ask(&mut c, "carol.testnet", "What is Broca?", ONE_NEAR, 120);
-        let a1 = answer(&mut c, "alice.testnet", q, "A bounty board");
-        let _a2 = answer(&mut c, "bob.testnet", q, "A board for agents");
+        let a1 = answer(&mut c, "alice.testnet", &q, "A bounty board");
+        let _a2 = answer(&mut c, "bob.testnet", &q, "A board for agents");
         testing_env!(ctx("carol.testnet", 0, T0 + 3).build());
-        c.pick_best(q, a1);
+        c.pick_best(q.clone(), a1);
 
-        assert_eq!(c.get_question(q).status, QuestionStatus::Settled);
+        assert_eq!(c.get_question(q.clone()).status, QuestionStatus::Settled);
         assert_eq!(unclaimed(&c, "alice.testnet"), 9_500); // 5000 - 500 + 5000
         assert_eq!(unclaimed(&c, "bob.testnet"), 4_500);
         assert_eq!(unclaimed(&c, "carol.testnet"), 5_000); // M3 asker on 1 NEAR
@@ -1274,7 +1298,7 @@ mod tests {
         register(&mut c, "alice.testnet", "alice");
         claim(&mut c, "alice.testnet");
         let q = ask(&mut c, "carol.testnet", "hi", ONE_NEAR, 120);
-        answer(&mut c, "alice.testnet", q, "hello");
+        answer(&mut c, "alice.testnet", &q, "hello");
         assert_eq!(liquid(&c, "alice.testnet"), GENESIS_GRANT - ANSWER_BURN);
         assert_eq!(unclaimed(&c, "alice.testnet"), 0);
     }
@@ -1287,9 +1311,9 @@ mod tests {
         register(&mut c, "alice.testnet", "alice");
         register(&mut c, "dave.testnet", "dave");
         let q = ask(&mut c, "carol.testnet", "timeout", ONE_NEAR, 120);
-        answer(&mut c, "alice.testnet", q, "only answer");
-        let ts = deadline_of(&c, q) + GRACE + 1;
-        settle_at(&mut c, "dave.testnet", q, ts);
+        answer(&mut c, "alice.testnet", &q, "only answer");
+        let ts = deadline_of(&c, &q) + GRACE + 1;
+        settle_at(&mut c, "dave.testnet", &q, ts);
         assert_eq!(unclaimed(&c, "alice.testnet"), 9_500); // winner
         assert_eq!(unclaimed(&c, "carol.testnet"), 5_000); // M3 asker
         assert_eq!(unclaimed(&c, "dave.testnet"), 5_250); // genesis + M4 crank
@@ -1301,9 +1325,9 @@ mod tests {
         register(&mut c, "alice.testnet", "alice");
         register(&mut c, "dave.testnet", "dave");
         let q = ask(&mut c, "carol.testnet", "pick", ONE_NEAR, 120);
-        let a = answer(&mut c, "alice.testnet", q, "answer");
+        let a = answer(&mut c, "alice.testnet", &q, "answer");
         testing_env!(ctx("carol.testnet", 0, T0 + 3).build());
-        c.pick_best(q, a);
+        c.pick_best(q.clone(), a);
         assert_eq!(unclaimed(&c, "carol.testnet"), 5_000);
         assert_eq!(unclaimed(&c, "dave.testnet"), 5_000, "no crank on pick_best");
     }
@@ -1314,8 +1338,8 @@ mod tests {
         register(&mut c, "alice.testnet", "alice");
         let q = ask(&mut c, "carol.testnet", "boost me", ONE_NEAR, 120);
         testing_env!(ctx("alice.testnet", 0, T0 + 1).build());
-        c.boost(q, U128(BOOST_MIN));
-        assert_eq!(c.get_question(q).boost.0, BOOST_MIN);
+        c.boost(q.clone(), U128(BOOST_MIN));
+        assert_eq!(c.get_question(q.clone()).boost.0, BOOST_MIN);
         assert_eq!(unclaimed(&c, "alice.testnet"), GENESIS_GRANT - BOOST_MIN);
     }
 
@@ -1326,7 +1350,7 @@ mod tests {
         register(&mut c, "alice.testnet", "alice");
         let q = ask(&mut c, "carol.testnet", "boost me", ONE_NEAR, 120);
         testing_env!(ctx("alice.testnet", 0, T0 + 1).build());
-        c.boost(q, U128(BOOST_MIN - 1));
+        c.boost(q.clone(), U128(BOOST_MIN - 1));
     }
 
     // --- step 4: sacrifice + tier, extra vote ------------------------------
@@ -1361,7 +1385,7 @@ mod tests {
         let mut answers = Vec::new();
         for _ in 0..6 {
             let q = ask(&mut c, "carol.testnet", "q", MIN_BOUNTY_YOCTO, 120);
-            answers.push(answer(&mut c, "alice.testnet", q, "a"));
+            answers.push(answer(&mut c, "alice.testnet", &q, "a"));
         }
         for a in &answers[..VOTES_PER_DAY as usize] {
             upvote(&mut c, "bob.testnet", *a);
@@ -1391,7 +1415,7 @@ mod tests {
         let mut c = setup();
         register(&mut c, "alice.testnet", "alice");
         let q = ask(&mut c, "carol.testnet", "hi", ONE_NEAR, 120);
-        answer(&mut c, "alice.testnet", q, "hello");
+        answer(&mut c, "alice.testnet", &q, "hello");
         assert_eq!(c.get_stats().total_burned, U128(ANSWER_BURN));
     }
 
@@ -1405,13 +1429,13 @@ mod tests {
         register(&mut c, "dave.testnet", "dave");
         register(&mut c, "erin.testnet", "erin");
         let q = ask(&mut c, "carol.testnet", "timeout path", ONE_NEAR, 120);
-        let _a1 = answer(&mut c, "alice.testnet", q, "first");
-        let a2 = answer(&mut c, "bob.testnet", q, "second");
+        let _a1 = answer(&mut c, "alice.testnet", &q, "first");
+        let a2 = answer(&mut c, "bob.testnet", &q, "second");
         upvote(&mut c, "dave.testnet", a2);
         upvote(&mut c, "erin.testnet", a2);
-        let ts = deadline_of(&c, q) + GRACE + 1;
-        settle_at(&mut c, "dave.testnet", q, ts);
-        assert_eq!(c.get_question(q).winner_answer_id, Some(a2));
+        let ts = deadline_of(&c, &q) + GRACE + 1;
+        settle_at(&mut c, "dave.testnet", &q, ts);
+        assert_eq!(c.get_question(q.clone()).winner_answer_id, Some(a2));
         assert_eq!(c.get_agent(acct("bob.testnet")).unwrap().wins, 1);
         assert_eq!(c.get_reputation(acct("bob.testnet")), 12);
     }
@@ -1424,22 +1448,22 @@ mod tests {
         register(&mut c, "dave.testnet", "dave");
         register(&mut c, "erin.testnet", "erin");
         let q = ask(&mut c, "carol.testnet", "tie path", ONE_NEAR, 120);
-        let a1 = answer(&mut c, "alice.testnet", q, "first");
-        let a2 = answer(&mut c, "bob.testnet", q, "second");
+        let a1 = answer(&mut c, "alice.testnet", &q, "first");
+        let a2 = answer(&mut c, "bob.testnet", &q, "second");
         upvote(&mut c, "dave.testnet", a1);
         upvote(&mut c, "erin.testnet", a2);
-        let ts = deadline_of(&c, q) + GRACE + 1;
-        settle_at(&mut c, "dave.testnet", q, ts);
-        assert_eq!(c.get_question(q).winner_answer_id, Some(a1));
+        let ts = deadline_of(&c, &q) + GRACE + 1;
+        settle_at(&mut c, "dave.testnet", &q, ts);
+        assert_eq!(c.get_question(q.clone()).winner_answer_id, Some(a1));
     }
 
     #[test]
     fn settle_without_answers_refunds() {
         let mut c = setup();
         let q = ask(&mut c, "carol.testnet", "no answers here", ONE_NEAR, 120);
-        let ts = deadline_of(&c, q) + GRACE + 1;
-        settle_at(&mut c, "dave.testnet", q, ts);
-        let question = c.get_question(q);
+        let ts = deadline_of(&c, &q) + GRACE + 1;
+        settle_at(&mut c, "dave.testnet", &q, ts);
+        let question = c.get_question(q.clone());
         assert_eq!(question.status, QuestionStatus::Refunded);
         assert_eq!(question.winner_answer_id, None);
         assert_eq!(c.get_stats().total_bounties_paid, U128(0));
@@ -1452,14 +1476,14 @@ mod tests {
         register(&mut c, "bob.testnet", "bob");
         register(&mut c, "dave.testnet", "dave");
         let q1 = ask(&mut c, "carol.testnet", "q1", ONE_NEAR, 120);
-        let a1 = answer(&mut c, "alice.testnet", q1, "a1");
-        let _a2 = answer(&mut c, "bob.testnet", q1, "a2");
+        let a1 = answer(&mut c, "alice.testnet", &q1, "a1");
+        let _a2 = answer(&mut c, "bob.testnet", &q1, "a2");
         upvote(&mut c, "dave.testnet", a1);
         testing_env!(ctx("carol.testnet", 0, T0 + 3).build());
-        c.pick_best(q1, a1);
+        c.pick_best(q1.clone(), a1);
         let q2 = ask(&mut c, "carol.testnet", "q2", ONE_NEAR, 120);
-        let ts = deadline_of(&c, q2) + GRACE + 1;
-        settle_at(&mut c, "dave.testnet", q2, ts);
+        let ts = deadline_of(&c, &q2) + GRACE + 1;
+        settle_at(&mut c, "dave.testnet", &q2, ts);
         let stats = c.get_stats();
         assert_eq!(
             stats.total_supply,
@@ -1513,7 +1537,7 @@ mod tests {
     fn reject_unregistered_answering() {
         let mut c = setup();
         let q = ask(&mut c, "carol.testnet", "hi", ONE_NEAR, 120);
-        answer(&mut c, "dave.testnet", q, "hello");
+        answer(&mut c, "dave.testnet", &q, "hello");
     }
 
     #[test]
@@ -1522,7 +1546,7 @@ mod tests {
         let mut c = setup();
         register(&mut c, "carol.testnet", "carol");
         let q = ask(&mut c, "carol.testnet", "hi", ONE_NEAR, 120);
-        answer(&mut c, "carol.testnet", q, "hello");
+        answer(&mut c, "carol.testnet", &q, "hello");
     }
 
     #[test]
@@ -1531,8 +1555,8 @@ mod tests {
         let mut c = setup();
         register(&mut c, "alice.testnet", "alice");
         let q = ask(&mut c, "carol.testnet", "hi", ONE_NEAR, 120);
-        answer(&mut c, "alice.testnet", q, "first");
-        answer(&mut c, "alice.testnet", q, "second");
+        answer(&mut c, "alice.testnet", &q, "first");
+        answer(&mut c, "alice.testnet", &q, "second");
     }
 
     #[test]
@@ -1541,7 +1565,7 @@ mod tests {
         let mut c = setup();
         register(&mut c, "alice.testnet", "alice");
         let q = ask(&mut c, "carol.testnet", "hi", ONE_NEAR, 120);
-        let ts = deadline_of(&c, q) + 1;
+        let ts = deadline_of(&c, &q) + 1;
         testing_env!(ctx("alice.testnet", 0, ts).build());
         c.answer(q, "late".to_string());
     }
@@ -1554,11 +1578,11 @@ mod tests {
         let n = GENESIS_GRANT / ANSWER_BURN;
         for _ in 0..n {
             let q = ask(&mut c, "carol.testnet", "q", MIN_BOUNTY_YOCTO, 120);
-            answer(&mut c, "alice.testnet", q, "a");
+            answer(&mut c, "alice.testnet", &q, "a");
         }
         assert_eq!(unclaimed(&c, "alice.testnet"), 0);
         let q = ask(&mut c, "carol.testnet", "q", MIN_BOUNTY_YOCTO, 120);
-        answer(&mut c, "alice.testnet", q, "a");
+        answer(&mut c, "alice.testnet", &q, "a");
     }
 
     #[test]
@@ -1567,7 +1591,7 @@ mod tests {
         let mut c = setup();
         register(&mut c, "alice.testnet", "alice");
         let q = ask(&mut c, "carol.testnet", "hi", ONE_NEAR, 120);
-        let a = answer(&mut c, "alice.testnet", q, "hello");
+        let a = answer(&mut c, "alice.testnet", &q, "hello");
         upvote(&mut c, "alice.testnet", a);
     }
 
@@ -1577,9 +1601,9 @@ mod tests {
         let mut c = setup();
         register(&mut c, "alice.testnet", "alice");
         let q = ask(&mut c, "carol.testnet", "hi", ONE_NEAR, 120);
-        let a = answer(&mut c, "alice.testnet", q, "hello");
+        let a = answer(&mut c, "alice.testnet", &q, "hello");
         testing_env!(ctx("dave.testnet", 0, T0 + 3).build());
-        c.pick_best(q, a);
+        c.pick_best(q.clone(), a);
     }
 
     #[test]
@@ -1587,8 +1611,8 @@ mod tests {
     fn reject_settle_before_grace() {
         let mut c = setup();
         let q = ask(&mut c, "carol.testnet", "hi", ONE_NEAR, 120);
-        let ts = deadline_of(&c, q) + 1;
-        settle_at(&mut c, "dave.testnet", q, ts);
+        let ts = deadline_of(&c, &q) + 1;
+        settle_at(&mut c, "dave.testnet", &q, ts);
     }
 
     #[test]
@@ -1596,9 +1620,9 @@ mod tests {
     fn reject_double_settlement() {
         let mut c = setup();
         let q = ask(&mut c, "carol.testnet", "hi", ONE_NEAR, 120);
-        let ts = deadline_of(&c, q) + GRACE + 1;
-        settle_at(&mut c, "dave.testnet", q, ts);
-        settle_at(&mut c, "dave.testnet", q, ts + 1);
+        let ts = deadline_of(&c, &q) + GRACE + 1;
+        settle_at(&mut c, "dave.testnet", &q, ts);
+        settle_at(&mut c, "dave.testnet", &q, ts + 1);
     }
 
     #[test]

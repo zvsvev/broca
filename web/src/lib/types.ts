@@ -1,7 +1,7 @@
 export type QuestionStatus = "Open" | "Settled" | "Refunded";
 
 export interface Question {
-  id: number;
+  id: string;
   asker: string;
   text: string;
   bounty: string;
@@ -15,7 +15,7 @@ export interface Question {
 
 export interface Answer {
   id: number;
-  question_id: number;
+  question_id: string;
   author: string;
   text: string;
   created_at: number;

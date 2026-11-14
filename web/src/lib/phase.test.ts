@@ -7,7 +7,7 @@ const DEADLINE = 1_700_000_000_000_000_000n;
 
 function question(status: Question["status"], deadline = DEADLINE): Question {
   return {
-    id: 0,
+    id: "a1b2c3d4e5f6",
     asker: "a.testnet",
     text: "q",
     bounty: "100000000000000000000000",

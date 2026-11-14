@@ -55,8 +55,8 @@ export function App() {
   const { questions, config } = useData();
   const [filter, setFilter] = useState<FilterKey>("open");
 
-  const match = pathname.match(/^\/q\/(\d+)/);
-  const routeId = match ? Number(match[1]) : null;
+  const match = pathname.match(/^\/q\/([0-9a-f]+)/i);
+  const routeId = match ? match[1] : null;
   const isAgents = pathname === "/agents";
   const isSetup = pathname === "/setup";
   const isBroca = pathname === "/broca";

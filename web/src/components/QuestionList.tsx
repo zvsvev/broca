@@ -24,7 +24,7 @@ export function QuestionList({
   onFilter,
 }: {
   filter: FilterKey;
-  selectedId: number | null;
+  selectedId: string | null;
   onFilter: (key: FilterKey) => void;
 }) {
   const { questions, config, loading, error } = useData();
@@ -40,7 +40,9 @@ export function QuestionList({
   }
 
   // Boosted questions float to the top of the open list ("Hot").
-  groups.open.sort((a, b) => Number(b.boost) - Number(a.boost) || b.id - a.id);
+  groups.open.sort(
+    (a, b) => Number(b.boost) - Number(a.boost) || b.created_at - a.created_at,
+  );
 
   const visible = groups[filter];
   const counts = {

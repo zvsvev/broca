@@ -127,7 +127,8 @@ async fn register(env: &Env, who: &AccountId, handle: &str) -> TestResult<()> {
     .await
 }
 
-async fn ask(env: &Env, who: &AccountId, text: &str, duration_sec: u64) -> TestResult<()> {
+/// Ask and return the generated question id (newest first).
+async fn ask(env: &Env, who: &AccountId, text: &str, duration_sec: u64) -> TestResult<String> {
     call(
         env,
         who,
@@ -135,10 +136,17 @@ async fn ask(env: &Env, who: &AccountId, text: &str, duration_sec: u64) -> TestR
         json!({ "text": text, "duration_sec": duration_sec }),
         NearToken::from_near(1),
     )
-    .await
+    .await?;
+    let questions: Value = view(
+        env,
+        "get_questions",
+        json!({ "status": null, "from_index": 0, "limit": 1 }),
+    )
+    .await?;
+    Ok(questions[0]["id"].as_str().unwrap().to_string())
 }
 
-async fn answer(env: &Env, who: &AccountId, question_id: u64, text: &str) -> TestResult<()> {
+async fn answer(env: &Env, who: &AccountId, question_id: &str, text: &str) -> TestResult<()> {
     call(
         env,
         who,
@@ -172,16 +180,18 @@ async fn pick_best_pays_bounty_and_mines() -> TestResult {
     register(&env, &bob, "bob").await?;
     assert_eq!(unclaimed(&env, &alice).await?, 5_000, "genesis grant to unclaimed");
 
-    ask(&env, &carol, "What is Broca?", 120).await?;
-    answer(&env, &alice, 0, "A bounty board").await?;
-    answer(&env, &bob, 0, "A Q&A for agents").await?;
+    let q = ask(&env, &carol, "What is Broca?", 120).await?;
+    assert_eq!(q.len(), 12, "12-char hex question id");
+    assert!(q.chars().all(|c| c.is_ascii_hexdigit()), "hex question id");
+    answer(&env, &alice, &q, "A bounty board").await?;
+    answer(&env, &bob, &q, "A Q&A for agents").await?;
     assert_eq!(unclaimed(&env, &alice).await?, 4_500, "answering burns 500");
     assert_eq!(unclaimed(&env, &bob).await?, 4_500, "answering burns 500");
 
     let alice_before = near_balance(&env, &alice).await?;
     let treasury_before = near_balance(&env, &treasury).await?;
 
-    call(&env, &carol, "pick_best", json!({ "question_id": 0, "answer_id": 0 }), NearToken::from_yoctonear(0)).await?;
+    call(&env, &carol, "pick_best", json!({ "question_id": q, "answer_id": 0 }), NearToken::from_yoctonear(0)).await?;
 
     let fee = ONE_NEAR * FEE_BPS / 10_000;
     let payout = ONE_NEAR - fee;
@@ -233,29 +243,29 @@ async fn timeout_settle_and_refund() -> TestResult {
         register(&env, who, handle).await?;
     }
 
-    ask(&env, &carol, "Timeout question", 120).await?;
-    answer(&env, &alice, 0, "first").await?;
-    answer(&env, &bob, 0, "second").await?;
+    let q0 = ask(&env, &carol, "Timeout question", 120).await?;
+    answer(&env, &alice, &q0, "first").await?;
+    answer(&env, &bob, &q0, "second").await?;
     upvote(&env, &dave, 1).await?;
     upvote(&env, &erin, 1).await?;
 
     env.sandbox.fast_forward(1000).await?;
-    call(&env, &dave, "settle", json!({ "question_id": 0 }), NearToken::from_yoctonear(0)).await?;
-    let q0 = view(&env, "get_question", json!({ "question_id": 0 })).await?;
-    assert_eq!(q0["status"], "Settled");
-    assert_eq!(q0["winner_answer_id"], 1);
+    call(&env, &dave, "settle", json!({ "question_id": q0 }), NearToken::from_yoctonear(0)).await?;
+    let q0_view = view(&env, "get_question", json!({ "question_id": q0 })).await?;
+    assert_eq!(q0_view["status"], "Settled");
+    assert_eq!(q0_view["winner_answer_id"], 1);
     assert_eq!(
         view(&env, "get_reputation", json!({ "account_id": bob.to_string() })).await?,
         12,
         "10 for the win + 2 upvotes received"
     );
 
-    ask(&env, &carol, "Refund question", 120).await?;
+    let q1 = ask(&env, &carol, "Refund question", 120).await?;
     let carol_before = near_balance(&env, &carol).await?;
     env.sandbox.fast_forward(1000).await?;
-    call(&env, &dave, "settle", json!({ "question_id": 1 }), NearToken::from_yoctonear(0)).await?;
-    let q1 = view(&env, "get_question", json!({ "question_id": 1 })).await?;
-    assert_eq!(q1["status"], "Refunded");
+    call(&env, &dave, "settle", json!({ "question_id": q1 }), NearToken::from_yoctonear(0)).await?;
+    let q1_view = view(&env, "get_question", json!({ "question_id": q1 })).await?;
+    assert_eq!(q1_view["status"], "Refunded");
     assert_eq!(near_balance(&env, &carol).await?, carol_before + ONE_NEAR);
 
     Ok(())
