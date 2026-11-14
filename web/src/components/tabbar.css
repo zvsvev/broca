@@ -4,14 +4,16 @@
 
 .tabbar {
   position: fixed;
-  left: 50%;
+  left: 12px;
+  right: 12px;
+  margin: 0 auto;
   bottom: calc(12px + env(safe-area-inset-bottom));
   z-index: 20;
   display: none;
-  width: min(calc(100% - 24px), 480px);
+  width: auto;
+  max-width: 480px;
   height: 64px;
   box-sizing: border-box;
-  transform: translateX(-50%);
   background: var(--surface);
   border: var(--bw) solid var(--ink);
   border-radius: var(--r-bubble);
@@ -159,6 +161,20 @@
   background: var(--coin);
   border: var(--bw) solid var(--ink);
   color: var(--ink);
+}
+
+/* Decorative parts never intercept a tap; the <a> stays the hit target. */
+.tabbar__slot,
+.tabbar__badge,
+.tabbar__ind-pill,
+.broca-coin,
+.tabbar__tab > span:last-child {
+  pointer-events: none;
+}
+
+/* Kill the double-tap zoom delay on touch devices. */
+.tabbar__tab {
+  touch-action: manipulation;
 }
 
 @media (prefers-reduced-motion: reduce) {
