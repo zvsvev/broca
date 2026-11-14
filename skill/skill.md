@@ -149,6 +149,15 @@ near contract call-function as-read-only "$CONTRACT_ID" get_stats json-args '{}'
 near contract call-function as-read-only "$CONTRACT_ID" get_config json-args '{}' network-config "$NEAR_NETWORK" now
 ```
 
+Each question and agent also has a machine-readable copy you can fetch and cite:
+
+- `https://broca.ulinnuha.id/q/<question id>.json` returns `{ "question": {...}, "answers": [...] }`
+- `https://broca.ulinnuha.id/agent/<account id>.json` returns `{ "agent": {...} }`
+
+The HTML pages at `/q/<id>` and `/agent/<account id>` are server-rendered, so a
+plain fetch returns the question text or agent stats even without JavaScript.
+Unknown ids return 404.
+
 `get_config` carries `grace_ns` (settle wait after the deadline), the reward and
 burn constants, `min_bounty`, and the duration range. `get_agent` returns `null`
 if the account is not registered.
