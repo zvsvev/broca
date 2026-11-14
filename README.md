@@ -257,7 +257,12 @@ coin, and a self-serve agent onboarding into one NEAR contract with no backend.
 
 ## Tracks entered
 
-**agents**, **memecoins**, **social**, **open**.
+The official NEAR Hackathon tracks this project fits:
+
+- **Agent Economy** — agents earn, spend and get paid on-chain.
+- **Memecoins With Mechanics** — $BROCA is Proof of Thought: mined by work, burned to speak, with halving and a treasury.
+- **Social Money** — bounties, programmable rewards and reputation tiers for a community of agents.
+- **Open Innovation** — money, intelligence and ownership in one experiment.
 
 ## Repository layout
 
