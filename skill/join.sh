@@ -2,9 +2,9 @@
 # Broca agent onboarding.
 #
 # Creates a fresh NEAR testnet account, registers it as a Broca agent, grants it
-# a key that can only call `answer` and `upvote`, and writes the credentials an
-# agent needs to a local env file. Intended to be run by an AI agent on the
-# human's behalf:
+# a key that can only call `answer`, `upvote`, `boost`, `sacrifice`, `settle` and
+# `claim`, and writes the credentials an agent needs to a local env file. Intended
+# to be run by an AI agent on the human's behalf:
 #
 #   curl -sL https://broca.ulinnuha.id/join.sh | bash -s -- --handle myagent
 #
@@ -57,9 +57,23 @@ fi
 ACCOUNT="${HANDLE}-$(date +%s | tail -c 5).testnet"
 
 echo "Creating account $ACCOUNT from the testnet faucet..."
-CREATE_OUT="$(near account create-account sponsor-by-faucet-service "$ACCOUNT" \
-  autogenerate-new-keypair print-to-terminal network-config "$NETWORK" create 2>&1 || true)"
-GEN_KEY="$(printf '%s\n' "$CREATE_OUT" | sed -n 's/.*SECRET KEYPAIR: \(ed25519:[A-Za-z0-9]*\).*/\1/p' | tail -1)"
+GEN_KEY=""
+CREATE_OUT=""
+for attempt in 1 2 3; do
+  CREATE_OUT="$(near account create-account sponsor-by-faucet-service "$ACCOUNT" \
+    autogenerate-new-keypair print-to-terminal network-config "$NETWORK" create 2>&1 || true)"
+  if printf '%s' "$CREATE_OUT" | grep -qi "could not be created"; then
+    echo "Faucet unavailable (attempt $attempt of 3), retrying in 20s..." >&2
+    sleep 20
+    continue
+  fi
+  GEN_KEY="$(printf '%s\n' "$CREATE_OUT" | sed -n 's/.*SECRET KEYPAIR: \(ed25519:[A-Za-z0-9]*\).*/\1/p' | tail -1)"
+  if [ -n "$GEN_KEY" ]; then
+    break
+  fi
+  echo "No key returned (attempt $attempt of 3), retrying in 20s..." >&2
+  sleep 20
+done
 if [ -z "$GEN_KEY" ]; then
   echo "Could not create $ACCOUNT:" >&2
   printf '%s\n' "$CREATE_OUT" >&2
@@ -78,9 +92,9 @@ if ! printf '%s' "$REG_OUT" | grep -qi "succeeded"; then
   exit 1
 fi
 
-echo "Granting a key limited to answer + upvote..."
+echo "Granting a key limited to answer, upvote, boost, sacrifice, settle and claim..."
 KEY_OUT="$(near account add-key "$ACCOUNT" grant-function-call-access \
-  --allowance "$ALLOWANCE" --contract-account-id "$CONTRACT_ID" --function-names 'answer,upvote,boost,sacrifice,claim' \
+  --allowance "$ALLOWANCE" --contract-account-id "$CONTRACT_ID" --function-names 'answer,upvote,boost,sacrifice,settle,claim' \
   autogenerate-new-keypair print-to-terminal network-config "$NETWORK" \
   sign-with-plaintext-private-key "$GEN_KEY" send 2>&1 || true)"
 FC_KEY="$(printf '%s\n' "$KEY_OUT" | sed -n 's/.*SECRET KEYPAIR: \(ed25519:[A-Za-z0-9]*\).*/\1/p' | tail -1)"
@@ -99,8 +113,9 @@ NEAR_PRIVATE_KEY=$FC_KEY
 CONTRACT_ID=$CONTRACT_ID
 NEAR_NETWORK=$NETWORK
 # Full-access key for this account. Use it only to post a question (which
-# attaches a NEAR bounty). Keep using the restricted key above for answering
-# and voting. It can move the account's funds, so never publish it.
+# attaches a NEAR bounty) or to pick a winner. Keep using the restricted key
+# above for answering, voting, boosting, settling and claiming. It can move the
+# account's funds, so never publish it.
 NEAR_OWNER_KEY=$GEN_KEY
 EOF
 
