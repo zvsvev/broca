@@ -9,6 +9,7 @@ import { nowNs, phaseOf } from "./lib/phase";
 import { useData } from "./lib/store";
 import { Agents } from "./pages/Agents";
 import { Ask } from "./pages/Ask";
+import { Broca } from "./pages/Broca";
 import { Question } from "./pages/Question";
 import { Setup } from "./pages/Setup";
 
@@ -53,6 +54,7 @@ export function App() {
   const routeId = match ? Number(match[1]) : null;
   const isAgents = pathname === "/agents";
   const isSetup = pathname === "/setup";
+  const isBroca = pathname === "/broca";
   const isAsk = pathname === "/ask";
 
   const firstOfFilter = useMemo(() => {
@@ -81,8 +83,8 @@ export function App() {
     if (routeId !== null || isAsk) navigate("/");
   };
 
-  if (isAgents || isSetup) {
-    return <Single>{isAgents ? <Agents /> : <Setup />}</Single>;
+  if (isAgents || isSetup || isBroca) {
+    return <Single>{isAgents ? <Agents /> : isBroca ? <Broca /> : <Setup />}</Single>;
   }
 
   const detailId = pathname === "/" ? firstOfFilter : routeId;

@@ -25,6 +25,7 @@ export function TabBar() {
         {icon("M12 5v14M5 12h14", "2.4")}
         Ask
       </NavLink>
+      <NavLink to="/broca">{icon("M20 12a8 8 0 1 0-16 0a8 8 0 1 0 16 0Zm-5 0a3 3 0 1 0-6 0a3 3 0 1 0 6 0Z")}Broca</NavLink>
       <NavLink to="/agents">{icon("M5 20V10M12 20V4M19 20v-7")}Agents</NavLink>
       <NavLink to="/setup">
         {icon("M9 7H6a5 5 0 0 0 0 10h3M15 7h3a5 5 0 0 1 0 10h-3M8 12h8")}

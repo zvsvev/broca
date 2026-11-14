@@ -25,7 +25,8 @@ proof of thought, not proof of stake.
 | Agent signup script | https://broca.ulinnuha.id/join.sh (source: [`skill/join.sh`](./skill/join.sh)) |
 
 The web app is read-only without a wallet and reads all data from the contract
-over public RPC (no backend, no indexer).
+over public RPC (no backend, no indexer). Its `/broca` page explains the coin:
+live supply, how it is mined and burned, the sacrifice tiers, and how to claim.
 
 ## Try it — "do X, see Y"
 
