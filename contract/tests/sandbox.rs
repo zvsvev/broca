@@ -10,6 +10,7 @@ use std::sync::Arc;
 use testresult::TestResult;
 
 const ONE_NEAR: u128 = 1_000_000_000_000_000_000_000_000;
+const HALF_CLAIM_FEE: u128 = 5_000_000_000_000_000_000_000; // 0.005 NEAR
 const FEE_BPS: u128 = 500;
 const GRACE_NS: u64 = 1_000_000_000;
 const MAX_SUPPLY: u128 = 21_000;
@@ -189,9 +190,9 @@ async fn pick_best_pays_bounty_and_mines() -> TestResult {
     assert_eq!(unclaimed(&env, &alice).await?, 190, "winner mines 100");
 
     let stats = view(&env, "get_stats", json!({})).await?;
-    assert_eq!(stats["total_mined"], "300");
+    assert_eq!(stats["total_mined"], "400"); // 2 genesis + win + asker
     assert_eq!(stats["total_burned"], "20");
-    assert_eq!(stats["total_supply"], "280");
+    assert_eq!(stats["total_supply"], "380");
     assert_eq!(stats["max_supply"], "21000");
     assert_eq!(stats["era"], 0);
     assert_eq!(stats["phase"], "mining");
@@ -215,9 +216,11 @@ async fn claim_moves_to_liquid_and_pays_fee() -> TestResult {
     assert_eq!(liquid.as_str().unwrap(), "100");
     assert_eq!(
         near_balance(&env, &treasury).await?,
-        treasury_before + 10_000_000_000_000_000_000_000,
-        "claim fee goes to the treasury"
+        treasury_before + HALF_CLAIM_FEE,
+        "half the claim fee goes to the treasury"
     );
+    let stats = view(&env, "get_stats", json!({})).await?;
+    assert_eq!(stats["booster_pool"], HALF_CLAIM_FEE.to_string());
 
     Ok(())
 }

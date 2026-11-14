@@ -872,3 +872,34 @@ details.cli summary {
 .tutorial b {
   color: var(--ink);
 }
+
+/* ---- mining progress (sidebar) ---- */
+.mined {
+  margin-top: 10px;
+  display: grid;
+  gap: 4px;
+}
+.mined-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+.mined-bar {
+  height: 6px;
+  border-radius: var(--r-prog);
+  background: var(--sunken);
+  overflow: hidden;
+}
+.mined-bar span {
+  display: block;
+  height: 100%;
+  background: var(--voice);
+}
+
+.tag-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}

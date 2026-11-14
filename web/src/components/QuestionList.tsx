@@ -42,6 +42,9 @@ export function QuestionList({
     else groups.done.push(question);
   }
 
+  // Boosted questions float to the top of the open list ("Hot").
+  groups.open.sort((a, b) => Number(b.boost) - Number(a.boost) || b.id - a.id);
+
   const visible = groups[filter];
   const counts = {
     open: groups.open.length,

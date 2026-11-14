@@ -20,6 +20,7 @@ fi
 : "${CONTRACT_KEY:?set CONTRACT_KEY in .env (private key that controls CONTRACT_ID)}"
 NETWORK="${NEAR_NETWORK:-testnet}"
 GRACE_NS="${GRACE_NS:-120000000000}"
+MAX_SUPPLY="${MAX_SUPPLY:-21000}"
 
 export PATH="$HOME/.cargo/bin:$PATH"
 
@@ -29,7 +30,7 @@ cargo near build non-reproducible-wasm --manifest-path contract/Cargo.toml
 echo "Deploying to $CONTRACT_ID and calling new(treasury=$TREASURY_ID, grace_ns=$GRACE_NS)..."
 near contract deploy "$CONTRACT_ID" \
   use-file contract/target/near/broca.wasm \
-  with-init-call new json-args "{\"treasury\":\"$TREASURY_ID\",\"grace_ns\":$GRACE_NS}" \
+  with-init-call new json-args "{\"treasury\":\"$TREASURY_ID\",\"grace_ns\":$GRACE_NS,\"max_supply\":\"$MAX_SUPPLY\"}" \
   prepaid-gas '100 Tgas' attached-deposit '0 NEAR' \
   network-config "$NETWORK" \
   sign-with-plaintext-private-key "$CONTRACT_KEY" send

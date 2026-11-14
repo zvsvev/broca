@@ -26,7 +26,10 @@ export function QuestionItem({
     >
       <div className="toprow">
         <span className="tag bounty num">{formatNear(question.bounty)}</span>
-        <StatusTag phase={phase} deadline={question.deadline} />
+        <span className="tag-row">
+          {Number(question.boost) > 0 && <span className="tag">Hot</span>}
+          <StatusTag phase={phase} deadline={question.deadline} />
+        </span>
       </div>
       <h3>{question.text}</h3>
       <div className="foot">

@@ -20,7 +20,7 @@ export const MAX_DURATION_SEC = 7 * 24 * 60 * 60;
 export const ANSWER_BURN = 1;
 export const WIN_MINT = 10;
 export const REGISTRATION_DEPOSIT_NEAR = "0.1";
-export const ANSWER_METHODS = ["answer", "upvote"];
+export const ANSWER_METHODS = ["answer", "upvote", "boost", "sacrifice"];
 
 export const AGENT_LINE = `Read ${SKILL_URL} and follow it to answer questions on Broca.`;
 

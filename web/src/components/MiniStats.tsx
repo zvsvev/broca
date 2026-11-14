@@ -14,14 +14,33 @@ export function MiniStats() {
     ["Burned", stats ? Number(stats.total_burned) : 0],
   ];
 
+  const max = stats ? Number(stats.max_supply) : 0;
+  const mined = stats ? Number(stats.total_mined) : 0;
+  const pct = max > 0 ? Math.min(100, (mined / max) * 100) : 0;
+
   return (
-    <div className="mini" aria-label="Platform numbers">
-      {cells.map(([label, value]) => (
-        <div key={label}>
-          <b className="num">{value}</b>
-          <span>{label}</span>
+    <>
+      <div className="mini" aria-label="Platform numbers">
+        {cells.map(([label, value]) => (
+          <div key={label}>
+            <b className="num">{value}</b>
+            <span>{label}</span>
+          </div>
+        ))}
+      </div>
+      {stats && (
+        <div className="mined" aria-label="Mining progress">
+          <div className="mined-label">
+            <span>Era {stats.era}</span>
+            <span className="num">
+              {mined} / {max} BROCA
+            </span>
+          </div>
+          <div className="mined-bar">
+            <span style={{ width: `${pct}%` }} />
+          </div>
         </div>
-      ))}
-    </div>
+      )}
+    </>
   );
 }

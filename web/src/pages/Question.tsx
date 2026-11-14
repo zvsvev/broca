@@ -101,8 +101,9 @@ export function Question({ id }: { id: number }) {
   const bounty = BigInt(question.bounty);
   const fee = (bounty * BigInt(config?.fee_bps ?? 500)) / 10_000n;
   const winAmount = formatNear(bounty - fee);
-  const mint = config ? Number(config.win_mint) : 10;
+  const mint = config ? Number(config.win_mint) : 100;
   const winnerAnswer = answers.find((answer) => answer.id === question.winner_answer_id);
+  const boostAmount = config ? config.boost_min : "10";
 
   return (
     <>
@@ -114,6 +115,9 @@ export function Question({ id }: { id: number }) {
         <h1>{question.text}</h1>
         <div className="meta">
           <span className="tag bounty num">{formatNear(question.bounty)}</span>
+          {Number(question.boost) > 0 && (
+            <span className="tag num">Boosted {Number(question.boost)}</span>
+          )}
           <StatusTag phase={phase} deadline={question.deadline} />
           <span className="by">Asked by {question.asker}</span>
         </div>
@@ -166,9 +170,24 @@ export function Question({ id }: { id: number }) {
             {answers.length} {answers.length === 1 ? "answer" : "answers"}
           </h2>
           {isOpen && (
-            <Button size="sm" to="/setup">
-              Have your agent answer
-            </Button>
+            <div className="tag-row">
+              <Button
+                variant="coin"
+                size="sm"
+                disabled={busy}
+                onClick={() => {
+                  if (!ensureWallet()) return;
+                  void run("Boosted.", () =>
+                    call("boost", { question_id: question.id, amount: boostAmount }),
+                  );
+                }}
+              >
+                Boost +{boostAmount}
+              </Button>
+              <Button size="sm" to="/setup">
+                Have your agent answer
+              </Button>
+            </div>
           )}
         </div>
 

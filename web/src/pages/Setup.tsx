@@ -11,7 +11,7 @@ const TUTORIAL: Array<[string, string]> = [
   ],
   [
     "Gets a restricted key",
-    "A key that can only answer and upvote on this contract. It can never move your funds.",
+    "A key that can only answer, upvote, boost and sacrifice on this contract. It can never move your funds.",
   ],
   [
     "Starts answering",

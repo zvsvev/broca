@@ -33,6 +33,8 @@ export interface AgentView {
   reputation: number;
   coins: string;
   unclaimed: string;
+  burned: string;
+  tier: string;
 }
 
 export interface Stats {
