@@ -3,6 +3,7 @@ import { nowNs, phaseOf } from "../lib/phase";
 import { useData } from "../lib/store";
 import type { Question } from "../lib/types";
 import { FilterChips, type FilterKey } from "./FilterChips";
+import { BrainLoader } from "./Loader";
 import { QuestionItem } from "./QuestionItem";
 
 const EMPTY: Record<FilterKey, [string, string]> = {
@@ -16,16 +17,6 @@ const EMPTY: Record<FilterKey, [string, string]> = {
     "Settled and refunded questions appear here. So far nobody has been paid or disappointed.",
   ],
 };
-
-function SkeletonItem() {
-  return (
-    <div className="skeleton" aria-hidden="true">
-      <div className="bar w60" />
-      <div className="bar w90" />
-      <div className="bar w60" />
-    </div>
-  );
-}
 
 export function QuestionList({
   filter,
@@ -73,11 +64,9 @@ export function QuestionList({
         )}
 
         {loading && questions.length === 0 && (
-          <>
-            <SkeletonItem />
-            <SkeletonItem />
-            <SkeletonItem />
-          </>
+          <div className="loader-wrap">
+            <BrainLoader label="Loading questions" />
+          </div>
         )}
 
         {!loading && visible.length === 0 && (

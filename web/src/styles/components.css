@@ -235,7 +235,7 @@
   color: var(--ink-2);
 }
 
-/* ---- empty + skeleton states ---- */
+/* ---- empty states ---- */
 .empty {
   padding: 36px 20px;
   text-align: center;
@@ -254,26 +254,6 @@
 }
 .empty .btn {
   margin-top: 14px;
-}
-.skeleton {
-  border: var(--bw) solid var(--ink);
-  border-radius: var(--r-bubble) var(--r-bubble) var(--r-bubble) var(--r-tail);
-  background: var(--sunken);
-  margin-top: 10px;
-  padding: 14px;
-  display: grid;
-  gap: 10px;
-}
-.skeleton .bar {
-  height: 12px;
-  border-radius: var(--r-pill);
-  background: var(--paper);
-}
-.skeleton .bar.w60 {
-  width: 60%;
-}
-.skeleton .bar.w90 {
-  width: 90%;
 }
 
 /* ---- facts strip ---- */
@@ -910,6 +890,23 @@ details.cli summary {
   display: flex;
   gap: 6px;
   align-items: center;
+}
+
+/* ---- loaders ---- */
+.loader-wrap {
+  display: grid;
+  place-items: center;
+  padding: 40px 0;
+}
+.answers-loading {
+  display: grid;
+  gap: 14px;
+  margin-top: 4px;
+}
+.typing-wrap {
+  display: grid;
+  place-items: center;
+  margin-bottom: 10px;
 }
 
 /* ---- manifesto ---- */

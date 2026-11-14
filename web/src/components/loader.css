@@ -1,0 +1,12 @@
+/* Broca loaders. Import once. Uses --sunken and --line from tokens.css when present. */
+.bl-brain{transform-box:fill-box;transform-origin:50% 55%;animation:bl-breathe 2.4s ease-in-out infinite}
+.bl-l{stroke-dasharray:1 2;stroke-dashoffset:1;animation:bl-draw 2.4s ease-in-out infinite}
+.bl-l2{animation-delay:.22s}.bl-l3{animation-delay:.44s}.bl-l4{animation-delay:.66s}
+@keyframes bl-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.035)}}
+@keyframes bl-draw{0%{stroke-dashoffset:1}22%,68%{stroke-dashoffset:0}86%,100%{stroke-dashoffset:1}}
+.bl-d{animation:bl-hop 1.1s ease-in-out infinite}.bl-d2{animation-delay:.15s}.bl-d3{animation-delay:.3s}
+@keyframes bl-hop{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
+.bl-skel{background:var(--sunken,#E4E1F1);border:1.5px solid var(--line,#CFCAE3);animation:bl-pulse 1.4s ease-in-out infinite}
+.bl-skel.q{border-radius:20px 20px 20px 4px}.bl-skel.a{border-radius:4px 20px 20px 20px}.bl-skel.pill{border-radius:999px}
+@keyframes bl-pulse{50%{opacity:.55}}
+@media (prefers-reduced-motion:reduce){.bl-brain,.bl-d,.bl-skel{animation:none}.bl-l{animation:none;stroke-dashoffset:0}}

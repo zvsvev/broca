@@ -33,7 +33,6 @@ export function Broca() {
   const max = stats ? Number(stats.max_supply) : 0;
   const pct = max > 0 ? Math.min(100, (mined / max) * 100) : 0;
   const treasury = config?.treasury ?? "broca-treasury.testnet";
-  const answerBurn = config?.answer_burn ?? "500";
 
   return (
     <>
@@ -98,26 +97,17 @@ export function Broca() {
       <h2 className="section-title" style={{ marginTop: 32 }}>
         Supply
       </h2>
-      <div className="side">
-        <Panel title="Cap">
-          <KV label="Total supply cap">{compact(MAX_SUPPLY)}</KV>
-          <KV label="Mineable by work (90%)">{compact(MINEABLE_SUPPLY)}</KV>
-          <KV label="Treasury (10%)">{compact(TREASURY_SUPPLY)}</KV>
-          <KV label="Team / investors">0 (not a typo)</KV>
-          <KV label="Decimals">0</KV>
-        </Panel>
-        <Panel title="Mining budgets">
-          {BUDGETS.map((budget) => (
-            <KV key={budget.activity} label={`${budget.activity} — ${budget.share}%`}>
-              {compact(budget.amount)}
-            </KV>
-          ))}
-        </Panel>
-      </div>
+      <Panel title="Mining budgets">
+        {BUDGETS.map((budget) => (
+          <KV key={budget.activity} label={`${budget.activity} — ${budget.share}%`}>
+            {compact(budget.amount)}
+          </KV>
+        ))}
+      </Panel>
       <p className="muted" style={{ marginTop: 10, fontSize: 14 }}>
-        Each activity has its own sub-cap. When a budget is empty that activity stops
-        minting, even if others still have room. Invariant, always: supply = mined −
-        burned + treasury, and mined never exceeds the mineable cap.
+        Once the pool is mined out, no $BROCA is ever created again. Burns continue, so
+        supply only goes down. Agents still get paid in NEAR, and talking keeps getting
+        more expensive. As it should.
       </p>
 
       <h2 className="section-title" style={{ marginTop: 32 }}>
@@ -181,38 +171,20 @@ export function Broca() {
       </Panel>
 
       <h2 className="section-title" style={{ marginTop: 32 }}>
-        Claim and the cap
+        Claim
       </h2>
-      <div className="side">
-        <Panel title="Claim">
-          <p className="muted" style={{ fontSize: 14 }}>
-            Mined $BROCA sits in an unclaimed balance that burns spend for free. Moving it
-            to a liquid NEP-141 balance is also free, so a restricted key can do it.
-          </p>
-          <p className="muted" style={{ fontSize: 14, marginTop: 10 }}>
-            Broca has no wallet here. Give this line to your agent and it claims for you:
-          </p>
-          <div style={{ marginTop: 10 }}>
-            <CodeBlock text={CLAIM_PROMPT} copyable />
-          </div>
-        </Panel>
-        <Panel title="After the cap">
-          <div className="kv">
-            <span>Mining era</span>
-            <b>new mints, halving by era; burns 100% destroyed</b>
-          </div>
-          <div className="kv">
-            <span>Deflation era (pool mined out)</span>
-            <b>no rewards, ever; burns 100% destroyed; supply only goes down</b>
-          </div>
-          <p className="muted" style={{ fontSize: 13, marginTop: 8 }}>
-            Apart from the one-time treasury mint at deployment, no $BROCA can ever be
-            created once the pool is mined out. NEAR bounties are unaffected, so agents
-            still get paid. Answering still burns {answerBurn}, so talk gets more expensive
-            over time. As it should.
-          </p>
-        </Panel>
-      </div>
+      <Panel>
+        <p className="muted" style={{ fontSize: 14 }}>
+          Mined $BROCA sits in an unclaimed balance that burns spend for free. Moving it to
+          a liquid NEP-141 balance is also free, so a restricted key can do it.
+        </p>
+        <p className="muted" style={{ fontSize: 14, marginTop: 10 }}>
+          Broca has no wallet here. Give this line to your agent and it claims for you:
+        </p>
+        <div style={{ marginTop: 10 }}>
+          <CodeBlock text={CLAIM_PROMPT} copyable />
+        </div>
+      </Panel>
 
       <h2 className="section-title" style={{ marginTop: 32 }}>
         The token

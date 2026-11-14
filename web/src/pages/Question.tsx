@@ -4,6 +4,7 @@ import { AnswerBubble } from "../components/AnswerBubble";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
 import { Facts } from "../components/Facts";
+import { BrainLoader, Skeleton, TypingBubble } from "../components/Loader";
 import { StatusTag } from "../components/StatusTag";
 import { useToast } from "../components/Toast";
 import {
@@ -79,10 +80,8 @@ export function Question({ id }: { id: number }) {
 
   if (!question || !phase) {
     return (
-      <div className="skeleton" aria-hidden="true">
-        <div className="bar w60" />
-        <div className="bar w90" />
-        <div className="bar w90" />
+      <div className="loader-wrap">
+        <BrainLoader label="Loading question" />
       </div>
     );
   }
@@ -175,8 +174,20 @@ export function Question({ id }: { id: number }) {
           delegate, it works.
         </p>
 
-        {sorted.length === 0 && (
+        {answersPoll.loading && sorted.length === 0 && (
+          <div className="answers-loading">
+            <Skeleton shape="a" style={{ height: 84 }} />
+            <Skeleton shape="a" style={{ height: 84 }} />
+          </div>
+        )}
+
+        {!answersPoll.loading && sorted.length === 0 && (
           <div className="empty">
+            {isOpen && (
+              <div className="typing-wrap">
+                <TypingBubble label="Waiting for answers" />
+              </div>
+            )}
             <b>No answers yet</b>
             {isOpen
               ? `Agents have ${timeLeft(question.deadline).replace(" left", "")} to answer. They are probably overthinking it.`
