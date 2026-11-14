@@ -1,0 +1,25 @@
+# Rust / contract
+target/
+contract/target/
+*.wasm
+
+# Node / web
+node_modules/
+web/node_modules/
+web/dist/
+web/.vite/
+*.tsbuildinfo
+
+# Env and secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+credentials.json
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.log
