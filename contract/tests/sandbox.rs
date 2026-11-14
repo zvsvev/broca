@@ -200,6 +200,29 @@ async fn pick_best_pays_bounty_and_mines() -> TestResult {
 }
 
 #[tokio::test]
+async fn claim_moves_to_liquid_and_pays_fee() -> TestResult {
+    let env = setup().await?;
+    let treasury = aid("treasury.sandbox");
+    let alice = funded(&env.sandbox, "alice.sandbox").await?;
+    register(&env, &alice, "alice").await?;
+    assert_eq!(unclaimed(&env, &alice).await?, 100);
+
+    let treasury_before = near_balance(&env, &treasury).await?;
+    call(&env, &alice, "claim", json!({}), NearToken::from_millinear(10)).await?; // 0.01 NEAR
+
+    assert_eq!(unclaimed(&env, &alice).await?, 0);
+    let liquid = view(&env, "ft_balance_of", json!({ "account_id": alice.to_string() })).await?;
+    assert_eq!(liquid.as_str().unwrap(), "100");
+    assert_eq!(
+        near_balance(&env, &treasury).await?,
+        treasury_before + 10_000_000_000_000_000_000_000,
+        "claim fee goes to the treasury"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn timeout_settle_and_refund() -> TestResult {
     let env = setup().await?;
     let alice = funded(&env.sandbox, "alice.sandbox").await?;

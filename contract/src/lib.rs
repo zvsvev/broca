@@ -554,6 +554,37 @@ impl Contract {
         self.settle_question(question_id, winner);
     }
 
+    /// Move all of the caller's unclaimed BROCA into their liquid balance.
+    /// Payable: requires exactly `CLAIM_FEE_YOCTO` NEAR, sent to the treasury.
+    /// Function-Call keys cannot attach NEAR, so this is an owner action.
+    #[payable]
+    pub fn claim(&mut self) {
+        let sender = env::predecessor_account_id();
+        require!(
+            env::attached_deposit().as_yoctonear() == CLAIM_FEE_YOCTO,
+            "Attach exactly 0.01 NEAR to claim"
+        );
+        let amount = self.unclaimed.get(&sender).unwrap_or(0);
+        require!(amount > 0, "Nothing to claim");
+
+        self.unclaimed.insert(&sender, &0);
+        let contract = env::current_account_id();
+        self.token.internal_withdraw(&contract, amount);
+        self.token.internal_deposit(&sender, amount);
+
+        let _ = Promise::new(self.treasury.clone())
+            .transfer(NearToken::from_yoctonear(CLAIM_FEE_YOCTO));
+
+        emit(
+            "broca_claimed",
+            json!({
+                "account": sender,
+                "amount": amount.to_string(),
+                "fee": CLAIM_FEE_YOCTO.to_string(),
+            }),
+        );
+    }
+
     // --- Views --------------------------------------------------------------
 
     pub fn get_questions(
@@ -1285,6 +1316,52 @@ mod tests {
         assert_eq!(stats.total_supply, U128(stats.total_mined.0 - stats.total_burned.0));
         assert_eq!(stats.total_supply, c.ft_total_supply());
         assert!(stats.total_mined.0 <= stats.max_supply.0);
+    }
+
+    // --- step 2: claim -----------------------------------------------------
+
+    #[test]
+    fn claim_moves_unclaimed_to_liquid() {
+        let mut c = setup();
+        register(&mut c, "alice.testnet", "alice");
+        assert_eq!(unclaimed(&c, "alice.testnet"), GENESIS_GRANT);
+        testing_env!(ctx("alice.testnet", CLAIM_FEE_YOCTO, T0 + 5).build());
+        c.claim();
+        assert_eq!(unclaimed(&c, "alice.testnet"), 0);
+        assert_eq!(liquid(&c, "alice.testnet"), GENESIS_GRANT);
+        assert_eq!(c.ft_total_supply(), U128(GENESIS_GRANT));
+    }
+
+    #[test]
+    fn burn_spends_liquid_after_unclaimed_is_gone() {
+        let mut c = setup();
+        register(&mut c, "alice.testnet", "alice");
+        testing_env!(ctx("alice.testnet", CLAIM_FEE_YOCTO, T0 + 5).build());
+        c.claim();
+        let q = ask(&mut c, "carol.testnet", "hi", ONE_NEAR, 120);
+        answer(&mut c, "alice.testnet", q, "hello");
+        assert_eq!(liquid(&c, "alice.testnet"), GENESIS_GRANT - ANSWER_BURN);
+        assert_eq!(unclaimed(&c, "alice.testnet"), 0);
+    }
+
+    #[test]
+    #[should_panic(expected = "Attach exactly 0.01 NEAR to claim")]
+    fn reject_claim_without_fee() {
+        let mut c = setup();
+        register(&mut c, "alice.testnet", "alice");
+        testing_env!(ctx("alice.testnet", 0, T0 + 5).build());
+        c.claim();
+    }
+
+    #[test]
+    #[should_panic(expected = "Nothing to claim")]
+    fn reject_claim_when_empty() {
+        let mut c = setup();
+        register(&mut c, "alice.testnet", "alice");
+        testing_env!(ctx("alice.testnet", CLAIM_FEE_YOCTO, T0 + 5).build());
+        c.claim();
+        testing_env!(ctx("alice.testnet", CLAIM_FEE_YOCTO, T0 + 6).build());
+        c.claim();
     }
 
     // --- step 1: era / cap / budget ----------------------------------------
