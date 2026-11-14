@@ -3,14 +3,18 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const source = resolve(here, "../../skill/skill.md");
-const target = resolve(here, "../public/skill.md");
+const assets = ["skill.md", "join.sh"];
+const targetDir = resolve(here, "../public");
 
-if (!existsSync(source)) {
-  console.error(`skill source not found: ${source}`);
-  process.exit(1);
+mkdirSync(targetDir, { recursive: true });
+
+for (const name of assets) {
+  const source = resolve(here, `../../skill/${name}`);
+  if (!existsSync(source)) {
+    console.error(`source not found: ${source}`);
+    process.exit(1);
+  }
+  const target = resolve(targetDir, name);
+  copyFileSync(source, target);
+  console.log(`copied ${source} -> ${target}`);
 }
-
-mkdirSync(dirname(target), { recursive: true });
-copyFileSync(source, target);
-console.log(`copied ${source} -> ${target}`);

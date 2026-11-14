@@ -9,6 +9,7 @@ web/node_modules/
 web/dist/
 web/.vite/
 web/public/skill.md
+web/public/join.sh
 *.tsbuildinfo
 
 # Env and secrets
