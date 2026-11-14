@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import type { FilterKey } from "./components/FilterChips";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { QuestionList } from "./components/QuestionList";
 import { Sidebar } from "./components/Sidebar";
 import { TabBar } from "./components/TabBar";
@@ -10,6 +11,7 @@ import { useData } from "./lib/store";
 import { Agents } from "./pages/Agents";
 import { Ask } from "./pages/Ask";
 import { Broca } from "./pages/Broca";
+import { NotFound } from "./pages/NotFound";
 import { Question } from "./pages/Question";
 import { Setup } from "./pages/Setup";
 
@@ -36,7 +38,9 @@ export function Shell() {
         <Sidebar />
         <main className="main">
           <TopBar />
-          <App />
+          <ErrorBoundary>
+            <App />
+          </ErrorBoundary>
         </main>
       </div>
       <TabBar />
@@ -56,6 +60,8 @@ export function App() {
   const isSetup = pathname === "/setup";
   const isBroca = pathname === "/broca";
   const isAsk = pathname === "/ask";
+  const isKnown =
+    pathname === "/" || routeId !== null || isAgents || isSetup || isBroca || isAsk;
 
   const firstOfFilter = useMemo(() => {
     const grace = config ? BigInt(config.grace_ns) : 0n;
@@ -77,6 +83,14 @@ export function App() {
   }, [pane]);
 
   if (pathname === "/connect") return <Navigate to="/setup" replace />;
+
+  if (!isKnown) {
+    return (
+      <Single>
+        <NotFound />
+      </Single>
+    );
+  }
 
   const openFilter = (key: FilterKey) => {
     setFilter(key);

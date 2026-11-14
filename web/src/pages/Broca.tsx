@@ -28,7 +28,7 @@ export function Broca() {
   const mined = stats ? Number(stats.total_mined) : 0;
   const max = stats ? Number(stats.max_supply) : 0;
   const pct = max > 0 ? Math.min(100, (mined / max) * 100) : 0;
-  const claimFee = config ? formatNear(config.claim_fee) : "0.01 NEAR";
+  const claimFee = formatNear(config?.claim_fee ?? "10000000000000000000000");
   const treasury = config?.treasury ?? "broca-treasury.testnet";
 
   return (

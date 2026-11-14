@@ -5,8 +5,13 @@ const HOUR_MS = 3_600_000;
 const MINUTE_MS = 60_000;
 
 /** Format yoctoNEAR to at most 2 decimals, trailing zeros trimmed, with unit. */
-export function formatNear(value: string | number | bigint): string {
-  const v = BigInt(value);
+export function formatNear(value: string | number | bigint | null | undefined): string {
+  let v: bigint;
+  try {
+    v = BigInt(value ?? 0);
+  } catch {
+    return "0 NEAR";
+  }
   const cents = (v * 100n + YOCTO / 2n) / YOCTO;
   const whole = cents / 100n;
   const frac = cents % 100n;

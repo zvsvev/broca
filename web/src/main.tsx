@@ -11,6 +11,7 @@ import "./styles/components.css";
 import "./styles/layout.css";
 
 import { Shell } from "./App";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { HowItWorksProvider } from "./components/HowItWorks";
 import { ToastProvider } from "./components/Toast";
 import { DataProvider } from "./lib/store";
@@ -23,7 +24,9 @@ createRoot(document.getElementById("root")!).render(
         <DataProvider>
           <ToastProvider>
             <HowItWorksProvider>
-              <Shell />
+              <ErrorBoundary>
+                <Shell />
+              </ErrorBoundary>
             </HowItWorksProvider>
           </ToastProvider>
         </DataProvider>
