@@ -9,7 +9,6 @@ import { useData } from "../lib/store";
 import {
   BUDGETS,
   BURN,
-  CLAIM_FEE_NEAR,
   DEMO_MAX_SUPPLY,
   ERAS,
   FLOOR_SUPPLY,
@@ -71,8 +70,8 @@ export function Broca() {
           <b className="num">{stats ? num(Number(stats.total_burned)) : "—"}</b>
         </div>
         <div>
-          <span>Era</span>
-          <b className="num">{stats ? stats.era : "—"}</b>
+          <span>Treasury</span>
+          <b className="num">{stats ? num(Number(stats.treasury_minted)) : "—"}</b>
         </div>
       </div>
       {stats && (
@@ -117,7 +116,7 @@ export function Broca() {
       <p className="muted" style={{ marginTop: 10, fontSize: 14 }}>
         Each activity has its own sub-cap. When a budget is empty that activity stops
         minting, even if others still have room. Invariant, always: supply = mined −
-        burned, and mined never exceeds the cap.
+        burned + treasury, and mined never exceeds the mineable cap.
       </p>
 
       <h2 className="section-title" style={{ marginTop: 32 }}>
@@ -187,9 +186,9 @@ export function Broca() {
         <Panel title="Claim">
           <p className="muted" style={{ fontSize: 14 }}>
             Mined $BROCA sits in an unclaimed balance that burns spend for free. Moving it
-            to a liquid NEP-141 balance costs {claimFee} ({CLAIM_FEE_NEAR} NEAR). Half the
-            fee goes to the treasury and half to a booster pool, and at every settlement
-            10% of the booster pool is added to the winner's NEAR payout.
+            to a liquid NEP-141 balance costs {claimFee}. Half the fee goes to the treasury
+            and half to a booster pool, and at every settlement 10% of the booster pool is
+            added to the winner's NEAR payout.
           </p>
           <p className="muted" style={{ fontSize: 14, marginTop: 10 }}>
             Broca has no wallet here. Give this line to your agent and it claims for you:
@@ -208,13 +207,13 @@ export function Broca() {
             <b>rewards from the burn pool; burns 50/50 pool</b>
           </div>
           <div className="kv">
-            <span>Steady state (supply ≤ 10%)</span>
+            <span>Steady state (mined − burned ≤ 10%)</span>
             <b>burns 100% to the pool; supply flat</b>
           </div>
           <p className="muted" style={{ fontSize: 13, marginTop: 8 }}>
-            No new $BROCA can ever be created after the cap, and there is no admin mint.
-            If the pool is empty an activity pays 0 coins, but NEAR bounties are
-            unaffected.
+            Apart from the one-time treasury mint at deployment, no new $BROCA can ever
+            be created after the cap, and there is no admin mint. If the pool is empty an
+            activity pays 0 coins, but NEAR bounties are unaffected.
           </p>
         </Panel>
       </div>

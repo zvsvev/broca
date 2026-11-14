@@ -3,7 +3,7 @@ export type FilterKey = "open" | "wait" | "done";
 const CHIPS: Array<[FilterKey, string]> = [
   ["open", "Open"],
   ["wait", "Awaiting decision"],
-  ["done", "Settled"],
+  ["done", "Closed"],
 ];
 
 export function FilterChips({

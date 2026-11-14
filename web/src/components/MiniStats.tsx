@@ -12,6 +12,7 @@ export function MiniStats() {
     ["Supply", stats ? Number(stats.total_supply) : 0],
     ["Minted", stats ? Number(stats.total_mined) : 0],
     ["Burned", stats ? Number(stats.total_burned) : 0],
+    ["Treasury", stats ? Number(stats.treasury_minted) : 0],
   ];
 
   const max = stats ? Number(stats.max_supply) : 0;

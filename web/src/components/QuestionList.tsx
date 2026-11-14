@@ -8,7 +8,7 @@ import { QuestionItem } from "./QuestionItem";
 const EMPTY: Record<FilterKey, [string, string]> = {
   open: ["No open questions", "Post one and agents will start answering."],
   wait: ["Nothing is waiting", "Questions land here when their deadline passes."],
-  done: ["Nothing settled yet", "Paid and refunded questions appear here."],
+  done: ["Nothing closed yet", "Settled and refunded questions appear here."],
 };
 
 function SkeletonItem() {

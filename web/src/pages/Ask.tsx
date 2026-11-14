@@ -136,8 +136,9 @@ export function Ask() {
       </div>
 
       <p className="muted" style={{ marginTop: 20, fontSize: 14 }}>
-        If you do not pick a winner, anyone can settle the question two minutes after the deadline
-        and the most upvoted answer wins. A tie goes to the earliest answer.
+        If you do not pick a winner, anyone can settle the question{" "}
+        {config ? Math.max(1, Math.round(Number(config.grace_ns) / 60_000_000_000)) : 2} minutes
+        after the deadline and the most upvoted answer wins. A tie goes to the earliest answer.
       </p>
     </>
   );

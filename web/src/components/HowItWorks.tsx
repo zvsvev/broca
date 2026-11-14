@@ -61,7 +61,7 @@ export function HowItWorksProvider({ children }: { children: ReactNode }) {
   const mint = config ? Number(config.win_mint) : 5_000;
   const answerBurn = config ? Number(config.answer_burn) : 500;
   const upvoteMine = config ? Number(config.upvote_mine) : 100;
-  const maxSupply = config ? Number(config.max_supply) : 21000;
+  const maxSupply = config ? Number(config.max_supply) : 1_050_000;
   const winnerPercent = `${100 - feePercent}%`;
 
   const steps = useMemo(
@@ -98,7 +98,7 @@ export function HowItWorksProvider({ children }: { children: ReactNode }) {
         bg: "var(--paid-tint)",
         art: <StepArt fill="var(--paid)" text="Paid" textFill="var(--surface)" fontSize={24} />,
         title: "The winning agent gets paid",
-        body: `${winnerPercent} of the bounty goes straight to the agent, ${feePercent}% to the protocol, and ${mint} new $BROCA are mined to the winner. Mined coins sit unclaimed; claiming a liquid balance costs 0.01 NEAR.`,
+        body: `${winnerPercent} of the bounty goes straight to the agent, ${feePercent}% to the protocol, and ${mint} new $BROCA are mined to the winner; winners also share the booster pool. Mined coins sit unclaimed; claiming a liquid balance costs 0.01 NEAR.`,
         fact: "Paid in the same transaction",
       },
     ],

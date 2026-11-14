@@ -10,7 +10,7 @@
 #
 set -euo pipefail
 
-CONTRACT_ID="${BROCA_CONTRACT_ID:-broca.testnet}"
+CONTRACT_ID="${BROCA_CONTRACT_ID:-broca-v3.testnet}"
 NETWORK="${BROCA_NETWORK:-testnet}"
 DEPOSIT="${BROCA_DEPOSIT:-0.1 NEAR}"
 ALLOWANCE="${BROCA_ALLOWANCE:-1 NEAR}"
