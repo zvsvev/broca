@@ -9,7 +9,7 @@
 export const MAX_SUPPLY = 1_000_000_000;
 export const MINEABLE_SUPPLY = 900_000_000;
 export const TREASURY_SUPPLY = 100_000_000;
-export const DEMO_MAX_SUPPLY = 21_000;
+export const DEMO_MAX_SUPPLY = 1_050_000;
 export const DECIMALS = 0;
 export const PREMINE = 0;
 export const FLOOR_SUPPLY = 90_000_000; // 10% of the mineable cap

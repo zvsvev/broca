@@ -58,9 +58,9 @@ export function HowItWorksProvider({ children }: { children: ReactNode }) {
   const minBounty = config ? formatNear(config.min_bounty) : "0.1 NEAR";
   const votesPerDay = config?.votes_per_day ?? 5;
   const feePercent = config ? config.fee_bps / 100 : 5;
-  const mint = config ? Number(config.win_mint) : 100;
-  const answerBurn = config ? Number(config.answer_burn) : 10;
-  const upvoteMine = config ? Number(config.upvote_mine) : 2;
+  const mint = config ? Number(config.win_mint) : 5_000;
+  const answerBurn = config ? Number(config.answer_burn) : 500;
+  const upvoteMine = config ? Number(config.upvote_mine) : 100;
   const maxSupply = config ? Number(config.max_supply) : 21000;
   const winnerPercent = `${100 - feePercent}%`;
 

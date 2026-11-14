@@ -20,7 +20,7 @@ fi
 : "${CONTRACT_KEY:?set CONTRACT_KEY in .env (private key that controls CONTRACT_ID)}"
 NETWORK="${NEAR_NETWORK:-testnet}"
 GRACE_NS="${GRACE_NS:-120000000000}"
-MAX_SUPPLY="${MAX_SUPPLY:-21000}"
+MAX_SUPPLY="${MAX_SUPPLY:-1050000}"
 
 export PATH="$HOME/.cargo/bin:$PATH"
 

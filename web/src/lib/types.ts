@@ -45,6 +45,7 @@ export interface Stats {
   total_mined: string;
   total_burned: string;
   total_supply: string;
+  treasury_minted: string;
   era: number;
   phase: string;
   reward_pool: string;
@@ -57,6 +58,7 @@ export interface Config {
   treasury: string;
   grace_ns: number;
   max_supply: string;
+  treasury_mint: string;
   registration_deposit: string;
   genesis_grant: string;
   answer_burn: string;

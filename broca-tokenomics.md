@@ -21,13 +21,12 @@ costs a piece of it.**
 | Mineable by work | 900,000,000 (90%), a cap on **cumulative mined**; burned coins are never re-minted |
 | Treasury | 100,000,000 (10%), not locked |
 | Team / investors | 0 |
-| Testnet demo | deployed with a 21,000 cap and smaller per-action numbers so a halving is visible in minutes; the exact deployed constants come from `get_config` |
+| Testnet demo | deployed with a 1,050,000 cap (the same 90/10 split) so a halving is visible in minutes; the exact deployed constants come from `get_config` |
 
 Invariant for the mineable pool, always: `total_mined ≤ 900,000,000` and
 `supply == total_mined − total_burned + treasury_minted`.
 
-> Deployed status: the current contract mints only from the activity budgets below and
-> has no treasury mint yet, so the 10% treasury is the design, not yet on-chain.
+The treasury allocation is minted once at deployment.
 
 ### Mining budgets (sub-caps per activity)
 

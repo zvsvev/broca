@@ -41,18 +41,20 @@ pub const DAY_NS: u64 = 86_400_000_000_000;
 pub const MAX_PAGE_LIMIT: u64 = 50;
 
 // Base rewards are era-0 values.
-pub const GENESIS_GRANT: u128 = 100;
-pub const UPVOTE_MINE: u128 = 2;
-pub const WIN_MINT: u128 = 100;
-pub const ASK_MINE_PER_TENTH_NEAR: u128 = 10;
-pub const ASK_MINE_MAX: u128 = 100;
-pub const SETTLE_MINE: u128 = 5;
-pub const ANSWER_BURN: u128 = 10;
-pub const BOOST_MIN: u128 = 10;
-pub const EXTRA_VOTE_BURN: u128 = 5;
+pub const GENESIS_GRANT: u128 = 5_000;
+pub const UPVOTE_MINE: u128 = 100;
+pub const WIN_MINT: u128 = 5_000;
+pub const ASK_MINE_PER_TENTH_NEAR: u128 = 500;
+pub const ASK_MINE_MAX: u128 = 5_000;
+pub const SETTLE_MINE: u128 = 250;
+pub const ANSWER_BURN: u128 = 500;
+pub const BOOST_MIN: u128 = 500;
+pub const EXTRA_VOTE_BURN: u128 = 250;
 pub const RECYCLE_BPS: u128 = 5000;
 pub const FLOOR_BPS: u128 = 1000;
-/// Activity budgets as basis points of `MAX_SUPPLY`: win, upvote, ask, genesis, settle.
+/// The treasury mints one ninth of the mineable cap, so supply is 90% minable / 10% treasury.
+pub const TREASURY_RATIO_DIVISOR: u128 = 9;
+/// Activity budgets as basis points of `MAX_SUPPLY` (the mineable cap): win, upvote, ask, genesis, settle.
 pub const BUDGET_BPS: [u128; 5] = [5000, 2000, 2000, 500, 500];
 
 pub const TOKEN_NAME: &str = "Broca";
@@ -167,6 +169,7 @@ pub struct Stats {
     pub total_mined: U128,
     pub total_burned: U128,
     pub total_supply: U128,
+    pub treasury_minted: U128,
     pub era: u32,
     pub phase: String,
     pub reward_pool: U128,
@@ -181,6 +184,7 @@ pub struct Config {
     pub treasury: AccountId,
     pub grace_ns: u64,
     pub max_supply: U128,
+    pub treasury_mint: U128,
     pub registration_deposit: U128,
     pub genesis_grant: U128,
     pub answer_burn: U128,
@@ -241,6 +245,7 @@ pub struct Contract {
     mined_by_activity: [u128; 5],
     total_mined: u128,
     total_burned: u128,
+    treasury_minted: u128,
     reward_pool: u128,
     booster_pool: u128,
     next_question_id: u64,
@@ -282,6 +287,7 @@ impl Contract {
             total_burned: 0,
             reward_pool: 0,
             booster_pool: 0,
+            treasury_minted: 0,
             next_question_id: 0,
             next_answer_id: 0,
             total_bounties_paid: 0,
@@ -289,6 +295,14 @@ impl Contract {
         let contract = env::current_account_id();
         this.token.internal_register_account(&contract);
         this.ft_registered.insert(&contract, &true);
+
+        // Treasury allocation: one ninth of the mineable cap, minted once at init.
+        let treasury_minted = this.max_supply / TREASURY_RATIO_DIVISOR;
+        let treasury_account = this.treasury.clone();
+        this.ensure_registered(&treasury_account);
+        this.token.internal_deposit(&treasury_account, treasury_minted);
+        this.treasury_minted = treasury_minted;
+
         this
     }
 
@@ -700,6 +714,7 @@ impl Contract {
             total_mined: U128(self.total_mined),
             total_burned: U128(self.total_burned),
             total_supply: self.token.ft_total_supply(),
+            treasury_minted: U128(self.treasury_minted),
             era: era(self.total_mined, self.max_supply),
             phase: match self.phase() {
                 Phase::Mining => "mining",
@@ -719,6 +734,7 @@ impl Contract {
             treasury: self.treasury.clone(),
             grace_ns: self.grace_ns,
             max_supply: U128(self.max_supply),
+            treasury_mint: U128(self.treasury_minted),
             registration_deposit: U128(REGISTRATION_DEPOSIT_YOCTO),
             genesis_grant: U128(GENESIS_GRANT),
             answer_burn: U128(ANSWER_BURN),
@@ -1002,11 +1018,11 @@ fn era(total_mined: u128, cap: u128) -> u32 {
 }
 
 fn tier_of(burned: u128) -> &'static str {
-    if burned >= 10_000 {
+    if burned >= 500_000 {
         "Broca's Area"
-    } else if burned >= 1_000 {
+    } else if burned >= 50_000 {
         "Cortex"
-    } else if burned >= 100 {
+    } else if burned >= 5_000 {
         "Neuron"
     } else {
         ""
@@ -1167,7 +1183,7 @@ mod tests {
     const T0: u64 = 1_700_000_000_000_000_000;
     const GRACE: u64 = 2 * 60 * 1_000_000_000;
     const ONE_NEAR: u128 = 1_000_000_000_000_000_000_000_000;
-    const DEMO_CAP: u128 = 21_000;
+    const DEMO_CAP: u128 = 1_050_000;
 
     fn acct(name: &str) -> AccountId {
         name.parse().unwrap()
@@ -1246,7 +1262,8 @@ mod tests {
         assert_eq!(agent.coins.0, 0, "genesis grant is unclaimed, not liquid");
         let stats = c.get_stats();
         assert_eq!(stats.total_mined, U128(GENESIS_GRANT));
-        assert_eq!(stats.total_supply, U128(GENESIS_GRANT));
+        assert_eq!(stats.total_supply, U128(GENESIS_GRANT + DEMO_CAP / 9));
+        assert_eq!(stats.treasury_minted, U128(DEMO_CAP / 9));
         assert_eq!(stats.era, 0);
         assert_eq!(stats.phase, "mining");
     }
@@ -1286,15 +1303,15 @@ mod tests {
         c.pick_best(q, a1);
 
         assert_eq!(c.get_question(q).status, QuestionStatus::Settled);
-        assert_eq!(unclaimed(&c, "alice.testnet"), 190); // 100 - 10 + 100
-        assert_eq!(unclaimed(&c, "bob.testnet"), 90);
-        assert_eq!(unclaimed(&c, "carol.testnet"), 100); // M3 asker on 1 NEAR
+        assert_eq!(unclaimed(&c, "alice.testnet"), 9_500); // 5000 - 500 + 5000
+        assert_eq!(unclaimed(&c, "bob.testnet"), 4_500);
+        assert_eq!(unclaimed(&c, "carol.testnet"), 5_000); // M3 asker on 1 NEAR
         assert_eq!(c.get_reputation(acct("alice.testnet")), 10);
 
         let stats = c.get_stats();
-        assert_eq!(stats.total_mined, U128(400)); // 2 genesis + win + ask
-        assert_eq!(stats.total_burned, U128(20));
-        assert_eq!(stats.total_supply, U128(380));
+        assert_eq!(stats.total_mined, U128(20_000)); // 2 genesis + win + ask
+        assert_eq!(stats.total_burned, U128(1_000));
+        assert_eq!(stats.total_supply, U128(20_000 - 1_000 + DEMO_CAP / 9));
         assert_eq!(stats.total_bounties_paid, U128(ONE_NEAR));
     }
 
@@ -1328,7 +1345,7 @@ mod tests {
         claim(&mut c, "alice.testnet");
         assert_eq!(unclaimed(&c, "alice.testnet"), 0);
         assert_eq!(liquid(&c, "alice.testnet"), GENESIS_GRANT);
-        assert_eq!(c.ft_total_supply(), U128(GENESIS_GRANT));
+        assert_eq!(c.ft_total_supply(), U128(GENESIS_GRANT + DEMO_CAP / 9));
         assert_eq!(c.booster_pool, CLAIM_FEE_YOCTO / 2);
     }
 
@@ -1354,9 +1371,9 @@ mod tests {
         answer(&mut c, "alice.testnet", q, "only answer");
         let ts = deadline_of(&c, q) + GRACE + 1;
         settle_at(&mut c, "dave.testnet", q, ts);
-        assert_eq!(unclaimed(&c, "alice.testnet"), 190); // winner
-        assert_eq!(unclaimed(&c, "carol.testnet"), 100); // M3 asker
-        assert_eq!(unclaimed(&c, "dave.testnet"), 105); // genesis + M4 crank
+        assert_eq!(unclaimed(&c, "alice.testnet"), 9_500); // winner
+        assert_eq!(unclaimed(&c, "carol.testnet"), 5_000); // M3 asker
+        assert_eq!(unclaimed(&c, "dave.testnet"), 5_250); // genesis + M4 crank
     }
 
     #[test]
@@ -1368,8 +1385,8 @@ mod tests {
         let a = answer(&mut c, "alice.testnet", q, "answer");
         testing_env!(ctx("carol.testnet", 0, T0 + 3).build());
         c.pick_best(q, a);
-        assert_eq!(unclaimed(&c, "carol.testnet"), 100);
-        assert_eq!(unclaimed(&c, "dave.testnet"), 100, "no crank on pick_best");
+        assert_eq!(unclaimed(&c, "carol.testnet"), 5_000);
+        assert_eq!(unclaimed(&c, "dave.testnet"), 5_000, "no crank on pick_best");
     }
 
     #[test]
@@ -1378,9 +1395,9 @@ mod tests {
         register(&mut c, "alice.testnet", "alice");
         let q = ask(&mut c, "carol.testnet", "boost me", ONE_NEAR, 120);
         testing_env!(ctx("alice.testnet", 0, T0 + 1).build());
-        c.boost(q, U128(10));
-        assert_eq!(c.get_question(q).boost.0, 10);
-        assert_eq!(unclaimed(&c, "alice.testnet"), GENESIS_GRANT - 10);
+        c.boost(q, U128(BOOST_MIN));
+        assert_eq!(c.get_question(q).boost.0, BOOST_MIN);
+        assert_eq!(unclaimed(&c, "alice.testnet"), GENESIS_GRANT - BOOST_MIN);
     }
 
     #[test]
@@ -1390,7 +1407,7 @@ mod tests {
         register(&mut c, "alice.testnet", "alice");
         let q = ask(&mut c, "carol.testnet", "boost me", ONE_NEAR, 120);
         testing_env!(ctx("alice.testnet", 0, T0 + 1).build());
-        c.boost(q, U128(9));
+        c.boost(q, U128(BOOST_MIN - 1));
     }
 
     // --- step 4: sacrifice + tier, extra vote ------------------------------
@@ -1400,9 +1417,9 @@ mod tests {
         let mut c = setup();
         register(&mut c, "alice.testnet", "alice");
         testing_env!(ctx("alice.testnet", 0, T0 + 1).build());
-        c.sacrifice(U128(100));
+        c.sacrifice(U128(5_000));
         let agent = c.get_agent(acct("alice.testnet")).unwrap();
-        assert_eq!(agent.burned.0, 100);
+        assert_eq!(agent.burned.0, 5_000);
         assert_eq!(agent.tier, "Neuron");
         assert_eq!(agent.unclaimed.0, 0);
         assert_eq!(agent.reputation, 0, "sacrifice does not change reputation");
@@ -1410,11 +1427,11 @@ mod tests {
 
     #[test]
     fn tier_thresholds() {
-        assert_eq!(tier_of(99), "");
-        assert_eq!(tier_of(100), "Neuron");
-        assert_eq!(tier_of(999), "Neuron");
-        assert_eq!(tier_of(1_000), "Cortex");
-        assert_eq!(tier_of(10_000), "Broca's Area");
+        assert_eq!(tier_of(4_999), "");
+        assert_eq!(tier_of(5_000), "Neuron");
+        assert_eq!(tier_of(49_999), "Neuron");
+        assert_eq!(tier_of(50_000), "Cortex");
+        assert_eq!(tier_of(500_000), "Broca's Area");
     }
 
     #[test]
@@ -1430,10 +1447,10 @@ mod tests {
         for a in &answers[..VOTES_PER_DAY as usize] {
             upvote(&mut c, "bob.testnet", *a);
         }
-        let before = unclaimed(&c, "bob.testnet"); // 100 + 5 * 2
+        let before = unclaimed(&c, "bob.testnet"); // 5000 + 5 * 100
         upvote(&mut c, "bob.testnet", answers[VOTES_PER_DAY as usize]);
         assert_eq!(unclaimed(&c, "bob.testnet"), before - EXTRA_VOTE_BURN);
-        assert_eq!(before, 110);
+        assert_eq!(before, 5_500);
     }
 
     // --- step 5: recycle era + floor --------------------------------------
@@ -1468,10 +1485,10 @@ mod tests {
         let mut c = setup_cap(1000);
         c.mint_new(1000);
         c.total_burned = 100; // recycle
-        c.reward_pool = 50;
+        c.reward_pool = 1_000;
         let reward = c.mine(&acct("alice.testnet"), Activity::Win, WIN_MINT);
-        assert_eq!(reward, 12); // 100 >> 3
-        assert_eq!(c.reward_pool, 38);
+        assert_eq!(reward, 625); // WIN_MINT >> 3
+        assert_eq!(c.reward_pool, 375);
         c.reward_pool = 0;
         let reward = c.mine(&acct("alice.testnet"), Activity::Win, WIN_MINT);
         assert_eq!(reward, 0, "empty pool pays nothing");
@@ -1559,7 +1576,7 @@ mod tests {
         let stats = c.get_stats();
         assert_eq!(
             stats.total_supply,
-            U128(stats.total_mined.0 - stats.total_burned.0)
+            U128(stats.total_mined.0 - stats.total_burned.0 + stats.treasury_minted.0)
         );
         assert_eq!(stats.total_supply, c.ft_total_supply());
         assert!(stats.total_mined.0 <= stats.max_supply.0);

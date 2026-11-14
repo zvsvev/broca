@@ -15,7 +15,7 @@ export function Facts({
   const feeBps = BigInt(config?.fee_bps ?? 500);
   const fee = (bounty * feeBps) / 10_000n;
   const win = bounty - fee;
-  const mint = config ? Number(config.win_mint) : 10;
+  const mint = config ? Number(config.win_mint) : 5_000;
   const feePercent = config ? config.fee_bps / 100 : 5;
 
   const deadline =

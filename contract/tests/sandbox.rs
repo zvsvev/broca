@@ -13,7 +13,8 @@ const ONE_NEAR: u128 = 1_000_000_000_000_000_000_000_000;
 const HALF_CLAIM_FEE: u128 = 5_000_000_000_000_000_000_000; // 0.005 NEAR
 const FEE_BPS: u128 = 500;
 const GRACE_NS: u64 = 1_000_000_000;
-const MAX_SUPPLY: u128 = 21_000;
+const MAX_SUPPLY: u128 = 1_050_000;
+const TREASURY_MINT: u128 = MAX_SUPPLY / 9;
 
 struct Env {
     network: NetworkConfig,
@@ -170,13 +171,13 @@ async fn pick_best_pays_bounty_and_mines() -> TestResult {
 
     register(&env, &alice, "alice").await?;
     register(&env, &bob, "bob").await?;
-    assert_eq!(unclaimed(&env, &alice).await?, 100, "genesis grant to unclaimed");
+    assert_eq!(unclaimed(&env, &alice).await?, 5_000, "genesis grant to unclaimed");
 
     ask(&env, &carol, "What is Broca?", 120).await?;
     answer(&env, &alice, 0, "A bounty board").await?;
     answer(&env, &bob, 0, "A Q&A for agents").await?;
-    assert_eq!(unclaimed(&env, &alice).await?, 90, "answering burns 10");
-    assert_eq!(unclaimed(&env, &bob).await?, 90, "answering burns 10");
+    assert_eq!(unclaimed(&env, &alice).await?, 4_500, "answering burns 500");
+    assert_eq!(unclaimed(&env, &bob).await?, 4_500, "answering burns 500");
 
     let alice_before = near_balance(&env, &alice).await?;
     let treasury_before = near_balance(&env, &treasury).await?;
@@ -187,13 +188,17 @@ async fn pick_best_pays_bounty_and_mines() -> TestResult {
     let payout = ONE_NEAR - fee;
     assert_eq!(near_balance(&env, &alice).await? - alice_before, payout);
     assert_eq!(near_balance(&env, &treasury).await? - treasury_before, fee);
-    assert_eq!(unclaimed(&env, &alice).await?, 190, "winner mines 100");
+    assert_eq!(unclaimed(&env, &alice).await?, 9_500, "winner mines 5000");
 
     let stats = view(&env, "get_stats", json!({})).await?;
-    assert_eq!(stats["total_mined"], "400"); // 2 genesis + win + asker
-    assert_eq!(stats["total_burned"], "20");
-    assert_eq!(stats["total_supply"], "380");
-    assert_eq!(stats["max_supply"], "21000");
+    assert_eq!(stats["total_mined"], "20000"); // 2 genesis + win + asker
+    assert_eq!(stats["total_burned"], "1000");
+    assert_eq!(stats["treasury_minted"], TREASURY_MINT.to_string());
+    assert_eq!(
+        stats["total_supply"],
+        (20_000u128 - 1_000 + TREASURY_MINT).to_string()
+    );
+    assert_eq!(stats["max_supply"], "1050000");
     assert_eq!(stats["era"], 0);
     assert_eq!(stats["phase"], "mining");
 
@@ -206,14 +211,14 @@ async fn claim_moves_to_liquid_and_pays_fee() -> TestResult {
     let treasury = aid("treasury.sandbox");
     let alice = funded(&env.sandbox, "alice.sandbox").await?;
     register(&env, &alice, "alice").await?;
-    assert_eq!(unclaimed(&env, &alice).await?, 100);
+    assert_eq!(unclaimed(&env, &alice).await?, 5_000);
 
     let treasury_before = near_balance(&env, &treasury).await?;
     call(&env, &alice, "claim", json!({}), NearToken::from_millinear(10)).await?; // 0.01 NEAR
 
     assert_eq!(unclaimed(&env, &alice).await?, 0);
     let liquid = view(&env, "ft_balance_of", json!({ "account_id": alice.to_string() })).await?;
-    assert_eq!(liquid.as_str().unwrap(), "100");
+    assert_eq!(liquid.as_str().unwrap(), "5000");
     assert_eq!(
         near_balance(&env, &treasury).await?,
         treasury_before + HALF_CLAIM_FEE,
