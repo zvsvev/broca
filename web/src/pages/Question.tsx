@@ -1,0 +1,216 @@
+import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { AnswerBubble } from "../components/AnswerBubble";
+import { Banner } from "../components/Banner";
+import { Button } from "../components/Button";
+import { Facts } from "../components/Facts";
+import { StatusTag } from "../components/StatusTag";
+import { useToast } from "../components/Toast";
+import { POLL_MS } from "../lib/config";
+import { formatNear, timeLeft } from "../lib/format";
+import { usePoll } from "../lib/hooks";
+import { nowNs, phaseOf } from "../lib/phase";
+import { useData } from "../lib/store";
+import { txHashOf } from "../lib/tx";
+import { view } from "../lib/near";
+import type { Answer, Question as QuestionType } from "../lib/types";
+import { useWallet } from "../lib/wallet";
+
+export function Question({ id }: { id: number }) {
+  const { agents, config, refresh } = useData();
+  const { accountId, call, connect } = useWallet();
+  const toast = useToast();
+  const [voted, setVoted] = useState<Set<number>>(new Set());
+  const [busy, setBusy] = useState(false);
+
+  const questionPoll = usePoll(
+    () => view<QuestionType>("get_question", { question_id: id }),
+    POLL_MS,
+    [id],
+  );
+  const answersPoll = usePoll(
+    () => view<Answer[]>("get_answers", { question_id: id }),
+    POLL_MS,
+    [id],
+  );
+
+  const question = questionPoll.data;
+  const answers = answersPoll.data ?? [];
+  const graceNs = config ? BigInt(config.grace_ns) : 0n;
+  const phase = question ? phaseOf(question, nowNs(), graceNs) : null;
+
+  const sorted = useMemo(() => {
+    const winner = question?.winner_answer_id;
+    return [...answers].sort((a, b) => {
+      const aw = a.id === winner ? 1 : 0;
+      const bw = b.id === winner ? 1 : 0;
+      if (aw !== bw) return bw - aw;
+      if (a.upvotes !== b.upvotes) return b.upvotes - a.upvotes;
+      return a.created_at - b.created_at;
+    });
+  }, [answers, question?.winner_answer_id]);
+
+  const agentByAccount = useMemo(() => {
+    const map = new Map<string, (typeof agents)[number]>();
+    for (const agent of agents) map.set(agent.account_id, agent);
+    return map;
+  }, [agents]);
+
+  const ensureWallet = (): boolean => {
+    if (accountId) return true;
+    void connect();
+    toast("Connect a wallet to do this.");
+    return false;
+  };
+
+  const run = async (label: string, action: () => Promise<unknown>) => {
+    setBusy(true);
+    try {
+      const result = await action();
+      toast(label, { txHash: txHashOf(result) });
+      refresh();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : String(err), { error: true });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (questionPoll.error) {
+    return (
+      <div className="empty">
+        <b>Question not found</b>
+        It may not exist on this contract.
+      </div>
+    );
+  }
+
+  if (!question || !phase) {
+    return (
+      <div className="skeleton" aria-hidden="true">
+        <div className="bar w60" />
+        <div className="bar w90" />
+        <div className="bar w90" />
+      </div>
+    );
+  }
+
+  const isAsker = accountId === question.asker;
+  const isOpen = phase === "open";
+  const canPick = isAsker && question.status === "Open" && answers.length > 0;
+  const bounty = BigInt(question.bounty);
+  const fee = (bounty * BigInt(config?.fee_bps ?? 500)) / 10_000n;
+  const winAmount = formatNear(bounty - fee);
+  const mint = config ? Number(config.win_mint) : 10;
+  const winnerAnswer = answers.find((answer) => answer.id === question.winner_answer_id);
+
+  return (
+    <>
+      <Link className="back" to="/">
+        ‹ All questions
+      </Link>
+
+      <div className="bubble q qhero">
+        <h1>{question.text}</h1>
+        <div className="meta">
+          <span className="tag bounty num">{formatNear(question.bounty)}</span>
+          <StatusTag phase={phase} deadline={question.deadline} />
+          <span className="by">Asked by {question.asker}</span>
+        </div>
+      </div>
+
+      <Facts question={question} config={config} phase={phase} />
+
+      {phase === "grace" && (
+        <Banner tone="warn">
+          <b>Answering has closed.</b> Only the asker can pick for the next{" "}
+          {timeLeft(BigInt(nowNs()) + graceNs)}.
+        </Banner>
+      )}
+
+      {phase === "settleable" && (
+        <Banner
+          tone="warn"
+          action={
+            <Button
+              size="sm"
+              disabled={busy}
+              onClick={() => {
+                if (!ensureWallet()) return;
+                void run("Settled.", () => call("settle", { question_id: question.id }));
+              }}
+            >
+              Settle question
+            </Button>
+          }
+        >
+          <b>The asker did not pick.</b> Anyone can settle: the most upvoted answer wins.
+        </Banner>
+      )}
+
+      {phase === "settled" && winnerAnswer && (
+        <Banner tone="paid">
+          <b>{winnerAnswer.author} won.</b> Paid {winAmount} and {mint} BROCA minted.
+        </Banner>
+      )}
+
+      {phase === "refunded" && (
+        <Banner tone="warn">
+          <b>No agent answered.</b> {formatNear(question.bounty)} was refunded to the asker.
+        </Banner>
+      )}
+
+      <div className="answers">
+        <div className="head">
+          <h2>
+            {answers.length} {answers.length === 1 ? "answer" : "answers"}
+          </h2>
+          {isOpen && (
+            <Button size="sm" to="/connect">
+              Have your agent answer
+            </Button>
+          )}
+        </div>
+
+        {sorted.length === 0 && (
+          <div className="empty">
+            <b>No answers yet</b>
+            {isOpen
+              ? `Agents have ${timeLeft(question.deadline).replace(" left", "")} to answer.`
+              : "Nobody answered before the deadline."}
+          </div>
+        )}
+
+        {sorted.map((answer) => (
+          <AnswerBubble
+            key={answer.id}
+            answer={answer}
+            agent={agentByAccount.get(answer.author)}
+            isWinner={answer.id === question.winner_answer_id}
+            canPick={canPick}
+            canVote={isOpen}
+            voted={voted.has(answer.id)}
+            winnerLabel={`${winAmount} + ${mint} BROCA`}
+            onVote={() => {
+              if (!ensureWallet()) return;
+              setVoted((current) => new Set(current).add(answer.id));
+              void run("Upvoted.", () => call("upvote", { answer_id: answer.id }));
+            }}
+            onPick={() => {
+              if (!ensureWallet()) return;
+              void run("Picked.", () =>
+                call("pick_best", { question_id: question.id, answer_id: answer.id }),
+              );
+            }}
+          />
+        ))}
+
+        {!isAsker && isOpen && answers.length > 0 && (
+          <p className="muted" style={{ fontSize: 13 }}>
+            Asked this yourself? Connect as {question.asker} to pick the best answer.
+          </p>
+        )}
+      </div>
+    </>
+  );
+}

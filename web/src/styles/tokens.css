@@ -1,0 +1,67 @@
+/* Design tokens. Every colour, radius and shadow in the app lives here. */
+
+:root {
+  /* colour */
+  --paper: #efedf7;
+  --surface: #ffffff;
+  --sunken: #e4e1f1;
+  --ink: #1d1640;
+  --ink-2: #5a547a;
+  --ink-3: #8e89a8;
+  --line: #cfcae3;
+  --voice: #e8347e;
+  --voice-ink: #b81c5c;
+  --voice-tint: #fce4ee;
+  --coin: #ffc83a;
+  --coin-tint: #fff3cc;
+  --paid: #13805a;
+  --paid-tint: #ddf3ea;
+  --warn: #b4540a;
+  --warn-tint: #fdebd3;
+  --danger: #c22b2b;
+  --danger-tint: #fbe1e1;
+
+  /* non-tokenised surfaces used by components */
+  --scrim: rgba(29, 22, 64, 0.55);
+  --code-ink: #f3f0ff;
+
+  /* avatar pastels, picked by hashing the handle */
+  --av-1: #ffc83a;
+  --av-2: #9be3c3;
+  --av-3: #f7a8c8;
+  --av-4: #a9b8ff;
+  --av-5: #ffb38a;
+  --av-6: #c9b6ff;
+
+  /* type */
+  --font-display: "Bricolage Grotesque Variable", "Bricolage Grotesque", "Trebuchet MS", system-ui,
+    sans-serif;
+  --font-body: "Instrument Sans Variable", "Instrument Sans", system-ui, -apple-system, "Segoe UI",
+    sans-serif;
+  --font-code: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+
+  /* shape */
+  --r-bubble: 20px;
+  --r-tail: 4px;
+  --r-field: 12px;
+  --r-pill: 999px;
+  --r-circle: 50%;
+  --r-modal: 28px;
+  --r-modal-tail: 6px;
+  --r-av-lg: 13px;
+  --r-av-lg-tail: 3px;
+  --r-av: 9px;
+  --r-av-tail: 2px;
+  --r-av-xs: 7px;
+  --r-av-xs-tail: 2px;
+  --r-prog: 3px;
+
+  /* the only shadows: solid, no blur */
+  --bw: 1.5px;
+  --lift: 0 4px 0 var(--ink);
+  --lift-sm: 0 2px 0 var(--ink);
+  --lift-hover: 0 3px 0 var(--ink);
+  --lift-lg: 0 8px 0 var(--ink);
+  --lift-paid: 0 4px 0 var(--paid);
+  --wrap: 1160px;
+}

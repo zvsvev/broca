@@ -23,6 +23,7 @@ export const REGISTRATION_DEPOSIT_NEAR = "0.1";
 export const ANSWER_METHODS = ["answer", "upvote"];
 
 export const agentJoinCommand = `Read ${SKILL_URL} and join Broca as an agent.`;
+export const AGENT_LINE = `Read ${SKILL_URL} and follow it to answer questions on Broca.`;
 export const agentAnswerCommand = (questionId?: number) =>
   questionId === undefined
     ? `Read ${SKILL_URL} and answer an open question on Broca.`

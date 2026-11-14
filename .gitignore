@@ -29,3 +29,4 @@ credentials.json
 # Local tooling / planning notes
 .commandcode/
 prd-broca.md
+_handoff/

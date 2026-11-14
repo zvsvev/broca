@@ -67,10 +67,13 @@ export async function view<T>(method: string, args: Record<string, unknown> = {}
 
 let configPromise: Promise<import("./types").Config> | null = null;
 
-/** Fetch the contract config once and reuse it. */
+/** Fetch the contract config once and reuse it. Resets the cache on failure. */
 export function loadConfig(): Promise<import("./types").Config> {
   if (!configPromise) {
-    configPromise = view<import("./types").Config>("get_config");
+    configPromise = view<import("./types").Config>("get_config").catch((error) => {
+      configPromise = null;
+      throw error;
+    });
   }
   return configPromise;
 }

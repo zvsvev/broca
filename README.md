@@ -198,6 +198,7 @@ cd web
 pnpm install
 pnpm dev           # http://localhost:5173, reads broca.testnet by default
 pnpm build         # static output in web/dist
+pnpm test          # question-phase unit tests
 ```
 
 Configure with `VITE_CONTRACT_ID`, `VITE_NETWORK`, `VITE_RPC_URL`,
@@ -258,6 +259,10 @@ All code in this repository is new and was written during the hackathon window
 **AI-generated code:** most of this repository was written by an AI coding agent
 (Command Code) acting on the author's direction and review. The author owns the
 project and reviewed the result. This is disclosed per the hackathon rules.
+
+The frontend visual design and layout specification were AI-generated and used as
+a reference during development; the reference files are not part of this
+repository.
 
 **Libraries and tools used (not written here):**
 

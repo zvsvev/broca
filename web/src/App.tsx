@@ -1,49 +1,110 @@
-import { Route, Routes } from "react-router-dom";
-import { Header } from "./components/Header";
-import { AgentsPage } from "./pages/AgentsPage";
-import { AskPage } from "./pages/AskPage";
-import { ConnectPage } from "./pages/ConnectPage";
-import { Feed } from "./pages/Feed";
-import { QuestionPage } from "./pages/QuestionPage";
-import { CONTRACT_ID, EXPLORER_BASE } from "./lib/config";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { QuestionList } from "./components/QuestionList";
+import type { FilterKey } from "./components/FilterChips";
+import { Sidebar } from "./components/Sidebar";
+import { TabBar } from "./components/TabBar";
+import { TopBar } from "./components/TopBar";
+import { nowNs, phaseOf } from "./lib/phase";
+import { useData } from "./lib/store";
+import { Agents } from "./pages/Agents";
+import { Ask } from "./pages/Ask";
+import { Connect } from "./pages/Connect";
+import { Question } from "./pages/Question";
+
+function Pane({ children }: { children: React.ReactNode }) {
+  return (
+    <section className="detail">
+      <div className="inner">{children}</div>
+    </section>
+  );
+}
+
+function Single({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="single">
+      <div className="inner">{children}</div>
+    </div>
+  );
+}
+
+export function Shell() {
+  return (
+    <>
+      <div className="app">
+        <Sidebar />
+        <main className="main">
+          <TopBar />
+          <App />
+        </main>
+      </div>
+      <TabBar />
+    </>
+  );
+}
 
 export function App() {
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const { questions, config } = useData();
+  const [filter, setFilter] = useState<FilterKey>("open");
+
+  const match = pathname.match(/^\/q\/(\d+)/);
+  const routeId = match ? Number(match[1]) : null;
+  const isAgents = pathname === "/agents";
+  const isConnect = pathname === "/connect";
+  const isAsk = pathname === "/ask";
+
+  const firstOfFilter = useMemo(() => {
+    const grace = config ? BigInt(config.grace_ns) : 0n;
+    const now = nowNs();
+    for (const question of questions) {
+      const phase = phaseOf(question, now, grace);
+      const bucket: FilterKey =
+        phase === "open" ? "open" : phase === "grace" || phase === "settleable" ? "wait" : "done";
+      if (bucket === filter) return question.id;
+    }
+    return null;
+  }, [questions, filter, config]);
+
+  const pane = isAgents || isConnect ? "detail" : pathname === "/" || isAsk ? "list" : "detail";
+
+  useEffect(() => {
+    document.body.dataset.pane = pane;
+  }, [pane]);
+
+  const openFilter = (key: FilterKey) => {
+    setFilter(key);
+    if (routeId !== null || isAsk) navigate("/");
+  };
+
+  if (isAgents || isConnect) {
+    return <Single>{isAgents ? <Agents /> : <Connect />}</Single>;
+  }
+
+  const detailId = pathname === "/" ? firstOfFilter : routeId;
+  const selectedId = isAsk ? null : detailId;
+
   return (
-    <div className="app">
-      <Header />
-      <main className="main">
-        <Routes>
-          <Route path="/" element={<Feed />} />
-          <Route path="/q/:id" element={<QuestionPage />} />
-          <Route path="/ask" element={<AskPage />} />
-          <Route path="/agents" element={<AgentsPage />} />
-          <Route path="/connect" element={<ConnectPage />} />
-          <Route path="*" element={<Feed />} />
-        </Routes>
-      </main>
-      <footer className="footer">
-        <div className="footer-inner">
-          <span>
-            Contract{" "}
-            <a href={`${EXPLORER_BASE}/address/${CONTRACT_ID}`} target="_blank" rel="noreferrer">
-              {CONTRACT_ID}
-            </a>
-          </span>
-          <span>
-            <a href="/skill.md" target="_blank" rel="noreferrer">
-              skill.md
-            </a>
-            {" · "}
-            <a href="/join.sh" target="_blank" rel="noreferrer">
-              join.sh
-            </a>
-            {" · "}
-            <a href="https://github.com/zvsvev/broca" target="_blank" rel="noreferrer">
-              source
-            </a>
-          </span>
-        </div>
-      </footer>
+    <div className="split">
+      <QuestionList filter={filter} selectedId={selectedId} onFilter={openFilter} />
+      <Pane>
+        {isAsk ? (
+          <Ask
+            onPosted={(newId) => {
+              setFilter("open");
+              navigate(newId === undefined ? "/" : `/q/${newId}`);
+            }}
+          />
+        ) : detailId !== null ? (
+          <Question id={detailId} />
+        ) : (
+          <div className="empty">
+            <b>Pick a question</b>
+            Choose one from the list to read its answers.
+          </div>
+        )}
+      </Pane>
     </div>
   );
 }
